@@ -15,7 +15,7 @@
   var me = localStorage.getItem("srk_me") || null;
   var MYTOKEN = localStorage.getItem("srk_token") || ("t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
   localStorage.setItem("srk_token", MYTOKEN);
-  var state = { tab: "home", pollId: null, prep: "schedule" };
+  var state = { tab: "home", pollId: null, prep: "vote" };
   var intro = { step: "name", pick: null, car: false };
   var booted = false;
   var photoSel = {};      // 선택된 사진 key 맵
@@ -203,6 +203,13 @@
   function cloudOn() { var c = CFG.cloudinary || {}; return !!(c.cloudName && c.uploadPreset); }
   function thumbUrl(u) { u = String(u || ""); return u.indexOf("/upload/") >= 0 ? u.replace("/upload/", "/upload/c_fill,w_600,h_600,q_auto,f_auto/") : u; }
   function attachUrl(u) { u = String(u || ""); return u.indexOf("/upload/") >= 0 ? u.replace("/upload/", "/upload/fl_attachment/") : u; }
+  function mediaThumb(p) {
+    p = p || {}; var u = String(p.url || "");
+    if (p.resourceType === "video" && u.indexOf("/upload/") >= 0) {
+      return u.replace("/upload/", "/upload/c_fill,w_600,h_600,q_auto,so_0/").replace(/\.(mp4|mov|webm|avi|m4v|mkv|3gp|ogv)$/i, ".jpg"); // 영상 첫 프레임 포스터
+    }
+    return thumbUrl(u);
+  }
   function selectedPhotoKeys() { return Object.keys(photoSel).filter(function (k) { return photoSel[k] && obj(DB.photos)[k]; }); }
 
   /* ============================================================
@@ -212,10 +219,10 @@
     var m = me && obj(DB.members)[me];
     if (!me || !m || !m.claimed || m.token !== MYTOKEN) { renderGate(); return; }
     $("#gate").classList.add("hidden");
+    if (state.tab === "vote") { state.tab = "prep"; state.prep = "vote"; } // 투표는 준비 탭으로 이동됨
     renderHeader(); renderNav();
     var main = $("#app-main");
     if (state.tab === "home") main.innerHTML = viewHome();
-    else if (state.tab === "vote") main.innerHTML = state.pollId ? viewPollDetail(state.pollId) : viewVote();
     else if (state.tab === "settle") main.innerHTML = viewSettle();
     else if (state.tab === "carpool") main.innerHTML = viewCarpool();
     else if (state.tab === "photo") main.innerHTML = viewPhotos();
@@ -232,7 +239,7 @@
       '<button class="me-chip" data-action="open-profile">' + avatar(me, 30) + "<span>" + esc(memberName(me)) + "</span></button>";
   }
   function renderNav() {
-    var tabs = [["home", "🏠", "홈"], ["vote", "🗳️", "투표"], ["settle", "💸", "정산"], ["carpool", "🚗", "카풀"], ["photo", "📷", "사진"], ["prep", "🎒", "준비"]];
+    var tabs = [["home", "🏠", "홈"], ["settle", "💸", "정산"], ["carpool", "🚗", "카풀"], ["photo", "📷", "사진"], ["prep", "🎒", "준비"]];
     $("#app-nav").innerHTML = tabs.map(function (t) {
       return '<button class="navbtn' + (state.tab === t[0] ? " on" : "") + '" data-action="tab" data-tab="' + t[0] + '"><span class="nav-ic">' + t[1] + "</span><span>" + t[2] + "</span></button>";
     }).join("");
@@ -308,7 +315,7 @@
       (t.note ? '<div class="hero-note">' + esc(t.note) + "</div>" : "") + "</div></div>";
 
     h += '<div class="stat-row">' +
-      '<button class="stat" data-action="tab" data-tab="vote"><div class="stat-n">' + openPolls.length + '</div><div class="stat-l">진행 중 투표</div></button>' +
+      '<button class="stat" data-action="go-vote"><div class="stat-n">' + openPolls.length + '</div><div class="stat-l">진행 중 투표</div></button>' +
       '<button class="stat" data-action="tab" data-tab="settle"><div class="stat-n">' + (totalSpent() / 10000).toFixed(totalSpent() % 10000 ? 1 : 0) + '<i>만원</i></div><div class="stat-l">총 지출</div></button>' +
       '<button class="stat" data-action="tab" data-tab="prep"><div class="stat-n">' + packDone + "/" + packArr.length + '</div><div class="stat-l">준비물</div></button></div>';
 
@@ -482,24 +489,25 @@
 
   /* ---------- 사진 ---------- */
   function viewPhotos() {
-    var h = '<div class="page-head"><h1>📷 사진</h1>' + (cloudOn() ? '<button class="btn-pri" data-action="pick-photos">+ 사진 올리기</button>' : "") + "</div>";
+    var h = '<div class="page-head"><h1>📷 사진·영상</h1>' + (cloudOn() ? '<button class="btn-pri" data-action="pick-photos">+ 올리기</button>' : "") + "</div>";
     if (!cloudOn()) {
-      h += '<div class="demo-note">📷 사진 기능을 켜려면 <b>Cloudinary 연결</b>이 필요해요. (config.js의 <code>cloudinary</code> 값) — 연결되면 앱 안에서 업로드 · 일부/전체 선택 · 일괄 다운로드가 켜집니다.</div>';
+      h += '<div class="demo-note">📷 사진·영상 기능을 켜려면 <b>Cloudinary 연결</b>이 필요해요. (config.js의 <code>cloudinary</code> 값) — 연결되면 앱 안에서 업로드 · 일부/전체 선택 · 일괄 다운로드가 켜집니다.</div>';
       return h;
     }
     var photos = bySort(entries(DB.photos), function (kv) { return -(kv[1].ts || 0); });
-    if (photoUploading) h += '<div class="hint">⏳ 사진 ' + photoUploading + "장 올리는 중… 잠시만요</div>";
+    if (photoUploading) h += '<div class="hint">⏳ ' + photoUploading + "개 올리는 중… (영상은 조금 걸려요)</div>";
     var sel = selectedPhotoKeys();
     var allSel = photos.length > 0 && sel.length === photos.length;
     h += '<div class="ph-bar"><label class="ph-all"><input type="checkbox" data-action="ph-all"' + (allSel ? " checked" : "") + "> 전체 선택</label>" +
       '<span class="ph-cnt">' + (sel.length ? sel.length + "장 선택" : photos.length + "장") + "</span>" +
       (sel.length ? '<button class="link-danger sm" data-action="ph-del">삭제</button><button class="btn-pri sm" data-action="ph-download">⬇ 다운로드 ' + sel.length + "</button>" : "") + "</div>";
-    if (!photos.length) { h += '<div class="empty">아직 사진이 없어요.<br>오른쪽 위 <b>+ 사진 올리기</b>로 추억을 모아봐요!</div>'; return h; }
+    if (!photos.length) { h += '<div class="empty">아직 올라온 게 없어요.<br>오른쪽 위 <b>+ 올리기</b>로 사진·영상을 모아봐요!</div>'; return h; }
     h += '<div class="ph-grid">';
     photos.forEach(function (kv) {
-      var p = kv[1], on = !!photoSel[kv[0]];
+      var p = kv[1], on = !!photoSel[kv[0]], isVid = p.resourceType === "video";
       h += '<div class="ph-cell' + (on ? " sel" : "") + '" data-action="ph-toggle" data-id="' + kv[0] + '">' +
-        '<img loading="lazy" src="' + esc(thumbUrl(p.url)) + '" alt="">' +
+        '<img loading="lazy" src="' + esc(mediaThumb(p)) + '" alt="">' +
+        (isVid ? '<span class="ph-vid">▶</span>' : "") +
         '<span class="ph-check">' + (on ? "✓" : "") + "</span>" +
         '<a class="ph-open" href="' + esc(p.url) + '" target="_blank" rel="noopener" data-action="ph-open" title="원본 보기">⤢</a>' +
         "</div>";
@@ -510,9 +518,13 @@
 
   /* ---------- 준비 ---------- */
   function viewPrep() {
-    var seg = [["schedule", "일정"], ["notice", "공지"], ["packing", "준비물"]];
+    if (state.prep === "vote" && state.pollId) return viewPollDetail(state.pollId); // 투표 상세는 단독 화면
+    var seg = [["vote", "투표"], ["schedule", "일정"], ["notice", "공지"], ["packing", "준비물"]];
     var h = '<div class="seg">' + seg.map(function (s) { return '<button class="seg-b' + (state.prep === s[0] ? " on" : "") + '" data-action="prep" data-prep="' + s[0] + '">' + s[1] + "</button>"; }).join("") + "</div>";
-    if (state.prep === "schedule") h += prepSchedule(); else if (state.prep === "notice") h += prepNotice(); else h += prepPacking();
+    if (state.prep === "vote") h += viewVote();
+    else if (state.prep === "schedule") h += prepSchedule();
+    else if (state.prep === "notice") h += prepNotice();
+    else h += prepPacking();
     return h;
   }
   function prepSchedule() {
@@ -690,11 +702,12 @@
 
     /* 탭 */
     if (a === "tab") { var nt = t.getAttribute("data-tab"); if (nt !== "photo") photoSel = {}; state.tab = nt; state.pollId = null; render(); return; }
-    if (a === "prep") { state.prep = t.getAttribute("data-prep"); render(); return; }
+    if (a === "prep") { state.prep = t.getAttribute("data-prep"); state.pollId = null; render(); return; }
+    if (a === "go-vote") { state.tab = "prep"; state.prep = "vote"; state.pollId = null; render(); return; }
     if (a === "close-modal") { closeModal(); return; }
 
     /* 투표 */
-    if (a === "open-poll") { state.tab = "vote"; state.pollId = t.getAttribute("data-id"); render(); return; }
+    if (a === "open-poll") { state.tab = "prep"; state.prep = "vote"; state.pollId = t.getAttribute("data-id"); render(); return; }
     if (a === "back-vote") { state.pollId = null; render(); return; }
     if (a === "vote") { ev.stopPropagation(); doVote(t.getAttribute("data-poll"), t.getAttribute("data-opt")); return; }
     if (a === "new-poll") { if (isMeAdmin()) formNewPoll(); return; }
@@ -806,15 +819,15 @@
   /* 사진 업로드 (Cloudinary unsigned) */
   function uploadPhotos(files) {
     if (!cloudOn()) { alert("사진 기능을 켜려면 Cloudinary 연결이 필요해요."); return; }
-    var arr = Array.prototype.slice.call(files || []).filter(function (f) { return f && f.type && f.type.indexOf("image/") === 0; });
+    var arr = Array.prototype.slice.call(files || []).filter(function (f) { return f && f.type && (f.type.indexOf("image/") === 0 || f.type.indexOf("video/") === 0); });
     if (!arr.length) return;
-    var c = CFG.cloudinary, url = "https://api.cloudinary.com/v1_1/" + c.cloudName + "/upload";
+    var c = CFG.cloudinary, url = "https://api.cloudinary.com/v1_1/" + c.cloudName + "/auto/upload"; // auto = 이미지·영상 모두
     photoUploading += arr.length; if (state.tab === "photo") render();
     arr.forEach(function (f) {
       var fd = new FormData(); fd.append("file", f); fd.append("upload_preset", c.uploadPreset);
       fetch(url, { method: "POST", body: fd }).then(function (r) { return r.json(); }).then(function (j) {
-        if (j && j.secure_url) Store.push("photos", { url: j.secure_url, publicId: j.public_id || "", w: j.width || 0, h: j.height || 0, name: clampStr(f.name, 80), by: me, ts: Date.now() });
-        else alert("사진 업로드 실패: " + ((j && j.error && j.error.message) || "Cloudinary 설정(프리셋이 Unsigned인지) 확인"));
+        if (j && j.secure_url) Store.push("photos", { url: j.secure_url, publicId: j.public_id || "", resourceType: j.resource_type || "image", format: j.format || "", w: j.width || 0, h: j.height || 0, name: clampStr(f.name, 80), by: me, ts: Date.now() });
+        else alert("업로드 실패: " + ((j && j.error && j.error.message) || "Cloudinary 설정(프리셋이 Unsigned인지, 영상 용량 한도) 확인"));
       }).catch(function () { alert("사진 업로드 중 네트워크 오류가 발생했어요."); }).then(function () { photoUploading = Math.max(0, photoUploading - 1); if (state.tab === "photo") render(); });
     });
   }
@@ -827,7 +840,7 @@
     var zip = new JSZip(), i = 0;
     Promise.all(keys.map(function (k) {
       var p = DB.photos[k];
-      return fetch(p.url).then(function (r) { return r.blob(); }).then(function (b) { i++; var nm = p.name || ("photo" + i); if (!/\.[a-z0-9]+$/i.test(nm)) nm += ".jpg"; zip.file(i + "_" + nm, b); });
+      return fetch(p.url).then(function (r) { return r.blob(); }).then(function (b) { i++; var nm = p.name || ("media" + i); if (!/\.[a-z0-9]+$/i.test(nm)) nm += "." + (p.format || (p.resourceType === "video" ? "mp4" : "jpg")); zip.file(i + "_" + nm, b); });
     })).then(function () { return zip.generateAsync({ type: "blob" }); })
       .then(function (blob) { triggerDl(URL.createObjectURL(blob), "슈리키-사진.zip"); })
       .catch(function () { alert("일괄 압축에 실패해 개별로 엽니다."); keys.forEach(function (k) { window.open(attachUrl(DB.photos[k].url), "_blank"); }); });
