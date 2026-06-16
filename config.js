@@ -22,6 +22,15 @@ window.SRK_CONFIG = {
     uploadPreset: ""   // 반드시 'Unsigned' 업로드 프리셋
   },
 
+  /* ── 1-3) 미디어 자동 축소 (업로드 전 브라우저에서) ──────────────
+     사진은 올리기 전에 자동으로 줄여서 용량을 아낍니다(영상은 미적용 —
+     영상은 Cloudinary 프리셋의 incoming transformation으로 서버 축소 권장). */
+  media: {
+    resizeImages: true,   // false면 원본 그대로 업로드
+    maxImageDim: 2048,    // 사진 긴 변 최대 px
+    imageQuality: 0.82    // JPEG 품질 (0~1)
+  },
+
   /* ── 2) 여행 정보 ─────────────────────────────────────────── */
   trip: {
     title:    "슈퍼리치키드 하계 MT",

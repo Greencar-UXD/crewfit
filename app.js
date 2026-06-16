@@ -816,6 +816,28 @@
   function saveSchedule() { if (!isMeAdmin()) return; var day = $("#f-day").value, time = $("#f-time").value, title = $("#f-title").value.trim(); if (!day || !time || !title) { alert("날짜·시간·내용을 모두 입력하세요"); return; } Store.push("schedule", { day: day, time: time, title: clampStr(title, 100), ts: Date.now() }); closeModal(); }
   function savePacking() { if (!isMeAdmin()) return; var label = $("#f-label").value.trim(); if (!label) return; Store.push("packing", { label: clampStr(label, 80), type: $("#f-type").value, assignee: $("#f-assignee").value || null, done: false, ready: {}, ts: Date.now() }); closeModal(); }
 
+  /* 업로드 전 사진 자동 축소 (브라우저 canvas). 영상·GIF·디코딩 불가 파일은 원본 유지 */
+  function resizeImageFile(file) {
+    var m = CFG.media || {};
+    return new Promise(function (resolve) {
+      if (!m.resizeImages || !file || file.type.indexOf("image/") !== 0 || file.type === "image/gif") return resolve(file);
+      var maxDim = m.maxImageDim || 2048, q = m.imageQuality || 0.82;
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+        var w = img.naturalWidth, h = img.naturalHeight; if (!w || !h) return resolve(file);
+        var scale = Math.min(1, maxDim / Math.max(w, h));
+        var nw = Math.max(1, Math.round(w * scale)), nh = Math.max(1, Math.round(h * scale));
+        try {
+          var cv = document.createElement("canvas"); cv.width = nw; cv.height = nh;
+          cv.getContext("2d").drawImage(img, 0, 0, nw, nh);
+          cv.toBlob(function (blob) { resolve(blob && blob.size < file.size ? blob : file); }, "image/jpeg", q);
+        } catch (e) { resolve(file); }
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); resolve(file); };
+      img.src = url;
+    });
+  }
   /* 사진 업로드 (Cloudinary unsigned) */
   function uploadPhotos(files) {
     if (!cloudOn()) { alert("사진 기능을 켜려면 Cloudinary 연결이 필요해요."); return; }
@@ -824,8 +846,10 @@
     var c = CFG.cloudinary, url = "https://api.cloudinary.com/v1_1/" + c.cloudName + "/auto/upload"; // auto = 이미지·영상 모두
     photoUploading += arr.length; if (state.tab === "photo") render();
     arr.forEach(function (f) {
-      var fd = new FormData(); fd.append("file", f); fd.append("upload_preset", c.uploadPreset);
-      fetch(url, { method: "POST", body: fd }).then(function (r) { return r.json(); }).then(function (j) {
+      resizeImageFile(f).then(function (up) {
+        var fd = new FormData(); fd.append("file", up); fd.append("upload_preset", c.uploadPreset);
+        return fetch(url, { method: "POST", body: fd });
+      }).then(function (r) { return r.json(); }).then(function (j) {
         if (j && j.secure_url) Store.push("photos", { url: j.secure_url, publicId: j.public_id || "", resourceType: j.resource_type || "image", format: j.format || "", w: j.width || 0, h: j.height || 0, name: clampStr(f.name, 80), by: me, ts: Date.now() });
         else alert("업로드 실패: " + ((j && j.error && j.error.message) || "Cloudinary 설정(프리셋이 Unsigned인지, 영상 용량 한도) 확인"));
       }).catch(function () { alert("사진 업로드 중 네트워크 오류가 발생했어요."); }).then(function () { photoUploading = Math.max(0, photoUploading - 1); if (state.tab === "photo") render(); });

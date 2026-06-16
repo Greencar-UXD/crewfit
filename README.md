@@ -73,8 +73,11 @@ srk-mt/
 3. **업로드 프리셋(Unsigned)** 만들기: ⚙️ **Settings → Upload → Upload presets → Add upload preset**
    - **Signing Mode = Unsigned** 로 설정 (필수! 서명 없이 브라우저에서 업로드)
    - (선택) Folder를 `srk-mt`로, 최대 용량/허용 포맷 제한을 걸면 더 안전
-   - **영상도 올리려면**: 영상은 용량이 커서 무료 한도(월 25GB)를 빨리 먹는다. 프리셋/계정 설정에서 **1개 최대 용량**(예: 100MB)을 제한하고, 긴 영상은 자제. (이미지·영상 모두 같은 프리셋으로 업로드됨)
    - 저장 후 그 **프리셋 이름**(예: `srk_unsigned`)을 복사
+
+> **용량 아끼기 (중요)**
+> - **사진**: 앱이 업로드 전 자동으로 줄여서 올린다(긴 변 2048px·JPEG 0.82 → 보통 80~90% 절감). `config.js`의 `media`에서 끄거나(`resizeImages:false`) 크기/품질을 바꿀 수 있다.
+> - **영상**: 브라우저에서 못 줄이므로 **Cloudinary 프리셋에서 서버 축소**를 권장한다. 프리셋 편집 화면의 **Incoming Transformation**에 예: `c_limit,w_1280,q_auto`(영상 720~1280p로 압축 저장)를 넣고, 계정 **Settings → Upload → 최대 파일 크기**를 100MB 등으로 제한한다. 긴 4K 영상은 자제.
 4. `config.js`의 `cloudinary` 칸을 채운다:
    ```js
    cloudinary: {
