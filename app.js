@@ -206,8 +206,11 @@
   /* ============================================================
      스토어 (Firebase | 데모)
      ============================================================ */
-  var _lastWErr = 0;
-  function onWriteError(e) { try { console.warn("write fail", e); } catch (_) {} var n = Date.now(); if (n - _lastWErr < 4000) return; _lastWErr = n; try { alert("저장에 실패했어요. 인터넷 연결을 확인하고 다시 시도해 주세요."); } catch (_) {} }
+  var _lastWErr = 0, pendingRetry = null, _retryTimer = 0;
+  function captureDraft() { var r = document.getElementById("modal-root"), v = {}; if (r) Array.prototype.forEach.call(r.querySelectorAll("input,textarea,select"), function (el) { if (el.id) v[el.id] = (el.type === "checkbox" ? el.checked : el.value); }); return v; }
+  function restoreDraft(v) { var r = document.getElementById("modal-root"); if (!r || !v) return; Object.keys(v).forEach(function (id) { var el = null; try { el = r.querySelector("#" + (window.CSS && CSS.escape ? CSS.escape(id) : id)); } catch (e) {} if (el) { if (el.type === "checkbox") el.checked = v[id]; else el.value = v[id]; } }); }
+  function armRetry(reopen) { var draft = captureDraft(); pendingRetry = function () { try { reopen(); restoreDraft(draft); var m = document.querySelector("#modal-root .modal"); if (m && !m.querySelector(".retry-warn")) { var d = document.createElement("div"); d.className = "retry-warn"; d.textContent = "저장에 실패했어요. 입력값은 그대로 두었어요 — 연결을 확인하고 다시 시도해 주세요."; m.insertBefore(d, m.firstChild); } } catch (e) {} }; if (_retryTimer) clearTimeout(_retryTimer); _retryTimer = setTimeout(function () { pendingRetry = null; }, 8000); }
+  function onWriteError(e) { try { console.warn("write fail", e); } catch (_) {} if (pendingRetry) { var r = pendingRetry; pendingRetry = null; try { r(); } catch (_) {} } var n = Date.now(); if (n - _lastWErr < 4000) return; _lastWErr = n; }
   var Store = (function () {
     var fb = CFG.firebase || {};
     var useCloud = !!(fb.apiKey && fb.databaseURL && window.firebase);
@@ -790,6 +793,7 @@
     if (r1 && !r2) winner = p1; else if (r2 && !r1) winner = p2; else winner = (s1 === s2) ? "" : (s1 > s2 ? p1 : p2);
     var match = { ts: Date.now(), by: me, sessionId: (($("#m-session") || {}).value) || null, p1: { id: p1, target: t1, score: s1, innings: inn, highRun: h1 }, p2: { id: p2, target: t2, score: s2, innings: inn, highRun: h2 }, winner: winner };
     var mk = key();
+    armRetry(function () { formMatch(match.sessionId || null); });
     Store.set("clubmatches/" + cid + "/" + mk, match);
     DB.clubmatches = DB.clubmatches || {}; DB.clubmatches[cid] = DB.clubmatches[cid] || {}; DB.clubmatches[cid][mk] = match;
     closeModal(); render();
@@ -810,7 +814,9 @@
   }
   function saveClimb() {
     var member = ($("#c-member") || {}).value; if (!member) return;
-    saveRecord({ ts: Date.now(), by: me, kind: "climb", member: member, grade: +(($("#c-grade") || {}).value) || 0, gym: clampStr(($("#c-gym") || {}).value, 30), sessionId: (($("#c-session") || {}).value) || null });
+    var sid = (($("#c-session") || {}).value) || null;
+    armRetry(function () { formClimb(sid); });
+    saveRecord({ ts: Date.now(), by: me, kind: "climb", member: member, grade: +(($("#c-grade") || {}).value) || 0, gym: clampStr(($("#c-gym") || {}).value, 30), sessionId: sid });
   }
   function formRun(sessionId) {
     var cid = state.clubId; if (!rankCanRec(cid)) { alert("동호회 멤버로 입장한 뒤 기록할 수 있어요."); return; }
@@ -826,7 +832,9 @@
     var member = ($("#r-member") || {}).value, dist = +(($("#r-dist") || {}).value) || 0, time = +(($("#r-time") || {}).value) || 0, err = $("#r-err");
     if (!member) return;
     if (dist <= 0 || time <= 0) { if (err) err.textContent = "거리와 시간을 입력해주세요."; return; }
-    saveRecord({ ts: Date.now(), by: me, kind: "run", member: member, dist: dist, time: time, sessionId: (($("#r-session") || {}).value) || null });
+    var sid = (($("#r-session") || {}).value) || null;
+    armRetry(function () { formRun(sid); });
+    saveRecord({ ts: Date.now(), by: me, kind: "run", member: member, dist: dist, time: time, sessionId: sid });
   }
   function sessionCard(s) {
     var st = sessStatus(s), isApp = s.kind === "app", canDel = s._user && isMeAdmin();
@@ -1750,6 +1758,7 @@
     var opts = Array.prototype.slice.call(document.querySelectorAll(".opt-field")).map(function (i) { return i.value.trim(); }).filter(Boolean);
     if (opts.length < 2) { alert("선택지를 2개 이상 입력하세요"); return; }
     var optMap = {}; opts.forEach(function (o) { optMap[key()] = { label: clampStr(o, 80) }; });
+    armRetry(function () { formNewPoll(); });
     Store.push("polls", { title: clampStr(title, 100), desc: clampStr($("#f-desc").value, 1000), type: $("#f-type").value, status: "open", createdBy: me, allowAddOptions: $("#f-add").checked, options: optMap, votes: {}, comments: {}, ts: Date.now() });
     notifyCrew(memberName(me) + "님이 새 투표를 올렸어요: " + clampStr(title, 60), "vote");
     closeModal();
@@ -1767,6 +1776,7 @@
       if (sum !== amt) { alert("각자 금액 합계(" + won(sum) + ")가 총액(" + won(amt) + ")과 같아야 정산이 맞아요.\n현재 차이: " + won(amt - sum)); return; }
       data.participants = parts;
     } else { if (checks.length === memberCount()) data.participantsAll = true; else { var pm = {}; checks.forEach(function (id) { pm[id] = true; }); data.participants = pm; } }
+    armRetry(function () { formNewExpense(editId); });
     if (editId) Store.set("expenses/" + editId, data); else Store.push("expenses", data);
     closeModal();
   }
@@ -1774,6 +1784,7 @@
     if (!isMeAdmin() && !(editId && (obj(DB.notices)[editId] || {}).by === me)) return;
     var v = $("#f-text").value.trim(); if (!v) return;
     var lk = clampStr(($("#f-nlink") || {}).value, 300) || null;
+    armRetry(function () { formNotice(editId); });
     if (editId) Store.update("notices/" + editId, { text: clampStr(v, 1000), pinned: $("#f-pin").checked, link: lk });
     else { Store.push("notices", { text: clampStr(v, 1000), by: me, pinned: $("#f-pin").checked, link: lk, ts: Date.now() }); notifyCrew(memberName(me) + "님이 공지를 올렸어요: " + clampStr(v, 50), "notice"); }
     closeModal();
@@ -1783,6 +1794,7 @@
     var day = $("#f-day").value, time = $("#f-time").value, title = $("#f-title").value.trim();
     if (!day || !time || !title) { alert("날짜·시간·제목을 입력하세요"); return; }
     var data = { day: day, time: time, title: clampStr(title, 100), place: clampStr($("#f-place").value, 60), link: clampStr($("#f-link").value, 300), desc: clampStr($("#f-desc2").value, 500), ts: (editId && obj(DB.schedule)[editId] ? obj(DB.schedule)[editId].ts : Date.now()) };
+    armRetry(function () { formSchedule(editId); });
     if (editId) Store.set("schedule/" + editId, data); else { Store.push("schedule", data); notifyCrew(memberName(me) + "님이 일정을 추가했어요: " + clampStr(title, 50), "schedule"); }
     closeModal();
   }
@@ -1795,11 +1807,11 @@
       var ok = cur.type === "personal" ? (cur.by === me || canManage(me)) : canManage(me); if (!ok) return;
       var upd = { label: clampStr(label, 80) };
       if (cur.type === "shared") upd.assignee = (($("#f-assignee") || {}).value) || null;
-      Store.update("packing/" + editId, upd); closeModal(); return;
+      armRetry(function () { formNewPacking(cur.type, editId); }); Store.update("packing/" + editId, upd); closeModal(); return;
     }
     var item = { label: clampStr(label, 80), type: ptype, done: false, ready: {}, by: me, ts: Date.now() };
     if (ptype === "shared") item.assignee = (($("#f-assignee") || {}).value) || null;
-    Store.push("packing", item); closeModal();
+    armRetry(function () { formNewPacking(ptype, null); }); Store.push("packing", item); closeModal();
   }
 
   /* Cloudinary unsigned 업로드 (이미지·영상) */

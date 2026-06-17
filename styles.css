@@ -782,3 +782,4 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .sc-tag.role-admin { color: var(--text-primary, var(--ink)); background: var(--surface-sunken, rgba(0,0,0,.05)); }
 .sc-tag.role-crew { color: var(--text-secondary, var(--muted)); background: var(--surface-sunken, rgba(0,0,0,.05)); }
 .sc-tag.role-guest { color: var(--text-secondary, var(--muted)); background: transparent; border: 1px dashed var(--line); }
+.retry-warn { background: color-mix(in srgb, var(--accent, var(--pri)) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent, var(--pri)) 35%, transparent); color: var(--accent, var(--pri)); border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-bottom: 12px; line-height: 1.5; }
