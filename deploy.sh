@@ -33,8 +33,8 @@ git config user.email >/dev/null 2>&1 || git config user.email "${USER_ID}+${LOG
 
 # 캐시버스팅: 배포마다 css/js 버전 쿼리를 타임스탬프로 갱신 (브라우저 캐시로 수정이 안 보이는 문제 방지)
 VER="$(date +%Y%m%d%H%M%S)"
-sed -i '' -E "s#(styles\.css|app\.js|config\.js|favicon\.svg|favicon\.png|favicon\.ico)\?v=[0-9]+#\1?v=$VER#g" index.html 2>/dev/null \
-  || sed -i -E "s#(styles\.css|app\.js|config\.js|favicon\.svg|favicon\.png|favicon\.ico)\?v=[0-9]+#\1?v=$VER#g" index.html
+sed -i '' -E "s#(styles\.css|app\.js|config\.js|favicon\.svg|favicon\.png|favicon\.ico|og-cover\.png)\?v=[0-9]+#\1?v=$VER#g" index.html 2>/dev/null \
+  || sed -i -E "s#(styles\.css|app\.js|config\.js|favicon\.svg|favicon\.png|favicon\.ico|og-cover\.png)\?v=[0-9]+#\1?v=$VER#g" index.html
 echo "→ 캐시버스팅 버전: $VER"
 
 # 커밋 (변경이 있을 때만)
