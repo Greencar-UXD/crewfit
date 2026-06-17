@@ -15,7 +15,7 @@
   var me = localStorage.getItem("srk_me") || null;
   var MYTOKEN = localStorage.getItem("srk_token") || ("t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
   localStorage.setItem("srk_token", MYTOKEN);
-  var state = { tab: "home", pollId: null, alert: "notice" };
+  var state = { screen: "session", sessionId: "summer-mt", tab: "home", pollId: null, alert: "notice" };
   var viewHist = [], lastSig = null, backing = false; // 뒤로가기용 화면 히스토리
   var intro = { step: "name", pick: null, car: false };
   var booted = false;
@@ -97,14 +97,15 @@
       edit: '<path d="M4 20h4L18.5 9.5l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>',
       link: '<path d="M9.5 14.5l5-5"/><path d="M11.5 7.5l1.2-1.2a3.6 3.6 0 0 1 5 5L17.5 12.5"/><path d="M12.5 16.5l-1.2 1.2a3.6 3.6 0 0 1-5-5L7.5 11.5"/>',
       check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
-      back: '<path d="M14.5 5.5 8 12l6.5 6.5"/>'
+      back: '<path d="M14.5 5.5 8 12l6.5 6.5"/>',
+      mountain: '<path d="M3 19h18L14 6l-4 7-2.5-3L3 19z"/><path d="M14 6l3.5 6"/>'
     };
     return '<svg class="ic" width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (P[name] || "") + "</svg>";
   }
 
   function todayKST() { var n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }
   function parseDate(s) { var p = String(s || "").split("-"); return new Date(+p[0], (+p[1] || 1) - 1, +p[2] || 1); }
-  function dday() { var t = (CFG.trip || {}).startDate; if (!t) return null; return Math.round((parseDate(t) - todayKST()) / 86400000); }
+  function dday() { var t = tripMeta().startDate; if (!t) return null; return Math.round((parseDate(t) - todayKST()) / 86400000); }
   function ddayLabel() { var d = dday(); if (d == null) return ""; return d > 0 ? "D-" + d : d === 0 ? "D-DAY" : "D+" + (-d); }
   function dateKo(s) {
     if (!s) return "미정";
@@ -118,6 +119,36 @@
     if (s < 86400) return Math.floor(s / 3600) + "시간 전"; if (s < 604800) return Math.floor(s / 86400) + "일 전";
     var d = new Date(ts); return (d.getMonth() + 1) + "/" + d.getDate();
   }
+
+  /* ---------- 세션(일정) 헬퍼 ---------- */
+  function ddayOf(s) { if (!s) return null; return Math.round((parseDate(s) - todayKST()) / 86400000); }
+  function ddayLabelOf(s) { var d = ddayOf(s); if (d == null) return ""; return d > 0 ? "D-" + d : d === 0 ? "D-DAY" : "D+" + (-d); }
+  function dateShort(s) { var d = parseDate(s); if (isNaN(d.getTime())) return "미정"; var wk = ["일", "월", "화", "수", "목", "금", "토"][d.getDay()]; return (d.getMonth() + 1) + "월 " + d.getDate() + "일(" + wk + ")"; }
+  function dateRangeKo(a, b) {
+    if (!a) return "미정";
+    if (!b || b === a) return dateShort(a);
+    var da = parseDate(a), db = parseDate(b);
+    var wk = ["일", "월", "화", "수", "목", "금", "토"][db.getDay()];
+    if (da.getMonth() === db.getMonth() && da.getFullYear() === db.getFullYear()) return dateShort(a) + " → " + db.getDate() + "일(" + wk + ")";
+    return dateShort(a) + " → " + dateShort(b);
+  }
+  function sessStatus(s) {
+    var a = ddayOf(s.startDate), b = ddayOf(s.endDate || s.startDate);
+    if (b != null && b < 0) return "past";
+    if (a != null && a <= 0 && (b == null || b >= 0)) return "now";
+    return "upcoming";
+  }
+  function sessStatusLabel(s) { var st = sessStatus(s); return st === "past" ? "지난 일정" : st === "now" ? "진행 중" : (ddayLabelOf(s.startDate) || "예정"); }
+  function allSessions() {
+    var built = (CFG.sessions || []).slice();
+    var user = entries(DB.sessions).map(function (kv) { var s = Object.assign({}, kv[1]); s.id = "db:" + kv[0]; s._user = true; s._key = kv[0]; return s; });
+    return bySort(built.concat(user), function (s) { var d = parseDate(s.startDate || "2999-01-01"); return isNaN(d.getTime()) ? 4102444800000 : d.getTime(); });
+  }
+  function sessionById(id) {
+    if (id && id.indexOf("db:") === 0) { var k = id.slice(3), v = obj(DB.sessions)[k]; if (!v) return null; var s = Object.assign({}, v); s.id = id; s._user = true; s._key = k; return s; }
+    var found = null; (CFG.sessions || []).forEach(function (x) { if (x.id === id) found = x; }); return found;
+  }
+  function currentSession() { return sessionById(state.sessionId) || (CFG.sessions || [])[0] || null; }
 
   /* 역 → 권역 */
   var STN_MAP = {}; (CFG.stations || []).forEach(function (s) { STN_MAP[s.n] = s.c; });
@@ -174,6 +205,59 @@
   })();
 
   /* ============================================================
+     세션 네임스페이싱
+     - members / notifications / sessions(허브 카드) 는 전역(root)
+     - 콘텐츠(trip·notices·schedule·packing·polls·expenses·photos·participants·paid)는
+       세션별. summer-mt는 레거시 호환으로 root에 그대로, 그 외는 s/{id}/ 아래.
+     ============================================================ */
+  var SESSION_COLLS = { trip: 1, notices: 1, schedule: 1, packing: 1, polls: 1, expenses: 1, photos: 1, participants: 1, paid: 1 };
+  function sessBase() { return state.sessionId === "summer-mt" ? "" : ("s/" + state.sessionId + "/"); }
+  function P(path) { var first = String(path).split("/")[0]; return SESSION_COLLS[first] ? (sessBase() + path) : path; }
+  var RawStore = Store;
+  Store = {
+    mode: RawStore.mode,
+    onRoot: function (cb) { return RawStore.onRoot(cb); },
+    set: function (p, v) { return RawStore.set(P(p), v); },
+    update: function (p, v) { return RawStore.update(P(p), v); },
+    push: function (p, v) { return RawStore.push(P(p), v); },
+    remove: function (p) { return RawStore.remove(P(p)); },
+    tx: function (p, fn) { return RawStore.tx(P(p), fn); },
+    seedRoot: function (b) { return RawStore.seedRoot(b); }
+  };
+
+  var RAW = {};               // 전체 루트 스냅샷
+  var sessSeeded = false;     // 세션 콘텐츠 시드 1회 보장 플래그
+  function sessionData() { return state.sessionId === "summer-mt" ? RAW : ((RAW.s && RAW.s[state.sessionId]) || {}); }
+  function rebuildDB() {
+    var base = sessionData();
+    DB = {
+      members: RAW.members, notifications: RAW.notifications, sessions: RAW.sessions,  // 전역
+      trip: base.trip, notices: base.notices, schedule: base.schedule, packing: base.packing,
+      polls: base.polls, expenses: base.expenses, photos: base.photos,
+      participants: base.participants, paid: base.paid
+    };
+  }
+  // 현재 세션의 멤버 ID (participants 있으면 그 부분집합, 없으면 전체 = summer-mt 호환)
+  function sessionMemberIds() {
+    var mem = obj(DB.members), p = DB.participants;
+    if (p && Object.keys(p).length) return Object.keys(p).filter(function (id) { return mem[id]; });
+    return Object.keys(mem);
+  }
+  // 현재 세션의 여행 메타(제목·날짜·장소·정원…). summer-mt는 CFG.trip + DB.trip(heroImage 등)
+  function tripMeta() {
+    if (state.sessionId === "summer-mt") return Object.assign({}, CFG.trip, obj(DB.trip));
+    var s = currentSession() || {}, app = s.app || {};
+    return Object.assign({
+      title: s.title || "MT", subtitle: s.subtitle || "", startDate: s.startDate || "", endDate: s.endDate || "",
+      location: s.location || "", address: s.address || "", lodging: s.lodging || "",
+      note: app.note || "", poolFee: app.poolFee || 0, airbnbUrl: app.airbnbUrl || "", carCapacity: app.carCapacity || 6, heroImage: ""
+    }, obj(DB.trip));
+  }
+  // 정산 '완료' 표시 — summer-mt는 레거시(members/me/paid), 그 외는 세션의 paid/me
+  function myPaidMap() { return state.sessionId === "summer-mt" ? obj((obj(DB.members)[me] || {}).paid) : obj(obj(DB.paid)[me]); }
+  function paidWritePath(creditor) { return state.sessionId === "summer-mt" ? ("members/" + me + "/paid/" + creditor) : ("paid/" + me + "/" + creditor); }
+
+  /* ============================================================
      초기 데이터
      ============================================================ */
   function buildSeed() {
@@ -196,6 +280,34 @@
   }
   function seedIfEmpty(root) { if (root && root.members && Object.keys(root.members).length) return false; Store.seedRoot(buildSeed); return true; }
 
+  /* 세션별 콘텐츠 시드 (s/{id}). config.sessions[].seed 기반. 비어 있을 때만(tx로 경합 안전). */
+  function buildSessionSeed(s) {
+    var seed = s.seed || {}, t = Date.now();
+    var root = { trip: {}, participants: {}, notices: {}, schedule: {}, packing: {}, polls: {}, expenses: {} };
+    root.trip = { title: s.title, subtitle: s.subtitle || "", startDate: s.startDate, endDate: s.endDate, location: s.location || "", address: s.address || "", lodging: s.lodging || "", heroImage: "" };
+    (seed.participants || []).forEach(function (id) { root.participants[id] = true; });
+    (seed.notices || []).forEach(function (n, i) { root.notices[key()] = { text: n.text, by: n.by || null, link: n.link || "", pinned: !!n.pinned, ts: t + i }; });
+    (seed.schedule || []).forEach(function (x, i) { root.schedule[key()] = { day: x.day, time: x.time, title: x.title, place: x.place || "", link: x.link || "", desc: x.desc || "", ts: t + i }; });
+    (seed.packing || []).forEach(function (p, i) { root.packing[key()] = { label: p.label, type: p.type || "shared", assignee: p.assignee || null, done: !!p.done, ready: {}, ts: t + i }; });
+    (seed.polls || []).forEach(function (p, i) {
+      var opts = {}, optKeys = []; (p.options || []).forEach(function (o) { var k = key(); opts[k] = { label: o }; optKeys.push(k); });
+      var votes = {}; if (p.votesByOption) p.votesByOption.forEach(function (ids, oi) { (ids || []).forEach(function (uid) { votes[uid] = votes[uid] || {}; if (optKeys[oi]) votes[uid][optKeys[oi]] = true; }); });
+      root.polls[key()] = { title: p.title, desc: p.desc || "", type: p.type || "single", status: p.status || "open", createdBy: p.createdBy || null, allowAddOptions: !!p.allowAddOptions, options: opts, votes: votes, comments: {}, ts: t + i };
+    });
+    (seed.expenses || []).forEach(function (e, i) {
+      var ex = { title: e.title, amount: e.amount, payer: e.payer, splitType: e.splitType || "equal", category: e.category || "", note: e.note || "", ts: t + i };
+      if (e.participantsAll) ex.participantsAll = true; else if (e.participants) ex.participants = e.participants;
+      root.expenses[key()] = ex;
+    });
+    return root;
+  }
+  function ensureSessionSeeds() {
+    (CFG.sessions || []).forEach(function (s) {
+      if (s.kind !== "app" || s.id === "summer-mt" || !s.seed) return;
+      RawStore.tx("s/" + s.id, function (cur) { if (cur && (cur.participants || cur.notices || cur.trip)) return; return buildSessionSeed(s); });
+    });
+  }
+
   /* ============================================================
      정산 엔진
      ============================================================ */
@@ -206,15 +318,15 @@
   }
   function expandShares(e) {
     var members = obj(DB.members), out = {}, ids;
-    if (e.participantsAll) ids = Object.keys(members);
+    if (e.participantsAll) ids = sessionMemberIds();
     else if (e.participants) ids = Object.keys(e.participants);
-    else ids = Object.keys(members);
+    else ids = sessionMemberIds();
     ids = ids.filter(function (id) { return members[id]; });
     if (e.splitType === "custom" && e.participants) { ids.forEach(function (id) { out[id] = Math.round(Number(e.participants[id]) || 0); }); return out; }
     var shares = splitEqual(e.amount, ids.length); ids.forEach(function (id, i) { out[id] = shares[i] || 0; }); return out;
   }
   function computeBalances() {
-    var bal = {}; Object.keys(obj(DB.members)).forEach(function (id) { bal[id] = 0; });
+    var bal = {}; sessionMemberIds().forEach(function (id) { bal[id] = 0; });
     entries(DB.expenses).forEach(function (kv) {
       var e = kv[1]; if (!e || !(Number(e.amount) > 0) || !e.payer) return;
       if (bal[e.payer] == null) bal[e.payer] = 0; bal[e.payer] += Math.round(Number(e.amount) || 0);
@@ -240,14 +352,14 @@
   /* ============================================================
      카풀 헬퍼
      ============================================================ */
-  function claimedMembers() { return Object.keys(obj(DB.members)).filter(function (id) { return DB.members[id] && DB.members[id].claimed; }); }
+  function claimedMembers() { return sessionMemberIds().filter(function (id) { return DB.members[id] && DB.members[id].claimed; }); }
   function isValidDriver(id) { var m = obj(DB.members)[id]; return !!(m && m.claimed && m.hasCar); }
   function drivers() { return claimedMembers().filter(function (id) { return DB.members[id].hasCar; }); }
   function passengersOf(d) { return claimedMembers().filter(function (id) { var m = DB.members[id]; return !m.hasCar && m.rideWith === d; }); }
-  function carCap() { return (CFG.trip || {}).carCapacity || 5; }       // 운전자 포함 총 정원
+  function carCap() { return tripMeta().carCapacity || 5; }       // 운전자 포함 총 정원
   function carFull(d) { return passengersOf(d).length >= carCap() - 1; } // 탑승자(운전자 제외) 최대 = 정원-1
   function unassignedPass() { return claimedMembers().filter(function (id) { var m = DB.members[id]; return !m.hasCar && (!m.rideWith || !isValidDriver(m.rideWith)); }); }
-  function memberCount() { return Object.keys(obj(DB.members)).length || 1; }
+  function memberCount() { return sessionMemberIds().length || 1; }
   function readyCount(p) { var mem = obj(DB.members); return Object.keys(obj(p.ready)).filter(function (id) { return mem[id]; }).length; }
 
   /* ---------- 알림 (notifications) ---------- */
@@ -274,17 +386,26 @@
   /* ============================================================
      렌더
      ============================================================ */
+  function setChrome(nonav) { var app = $("#app"); if (app) app.classList.toggle("nonav", !!nonav); }
   function render() {
+    rebuildDB();   // 현재 세션 기준으로 DB 뷰 재구성
     var m = me && obj(DB.members)[me];
     if (!me || !m || !m.claimed) { renderGate(); return; }
     $("#gate").classList.add("hidden");
     if (state.tab === "vote" || state.tab === "settle") { state.alert = state.tab === "settle" ? "settle" : "vote"; state.tab = "alert"; } // 구 탭 → 알림으로 통합
     if (state.tab === "prep") state.tab = "my"; // 준비물 → 마이 탭으로 이동
-    var sig = state.tab + "|" + state.alert + "|" + (state.pollId || ""); // 뒤로가기 히스토리 기록
+    var sess = state.screen === "hub" ? null : currentSession();
+    var mode = state.screen === "hub" ? "hub" : (sess && sess.kind === "info" ? "info" : "app");
+    // 뒤로가기 히스토리 기록 (화면·세션·탭 단위)
+    var sig = state.screen + "|" + (state.sessionId || "") + "|" + state.tab + "|" + state.alert + "|" + (state.pollId || "");
     if (lastSig !== null && lastSig !== sig) { if (backing) backing = false; else { viewHist.push(lastSig); if (viewHist.length > 40) viewHist.shift(); } }
     lastSig = sig;
-    renderHeader(); renderNav();
     var main = $("#app-main");
+    if (mode === "hub") { renderHubHeader(); $("#app-nav").innerHTML = ""; setChrome(true); main.innerHTML = viewHub(); window.scrollTo(0, 0); return; }
+    if (mode === "info") { renderHeader(sess); $("#app-nav").innerHTML = ""; setChrome(true); main.innerHTML = viewSessionInfo(sess); window.scrollTo(0, 0); return; }
+    // 실시간 앱 세션
+    setChrome(false);
+    renderHeader(sess); renderNav();
     if (state.tab === "home") main.innerHTML = viewHome();
     else if (state.tab === "alert") main.innerHTML = viewAlert();
     else if (state.tab === "carpool") main.innerHTML = viewCarpool();
@@ -295,18 +416,30 @@
   }
   function scheduleRender() { if (booted) render(); }
   function goBack() {
-    if (viewHist.length) { var p = viewHist.pop().split("|"); state.tab = p[0]; state.alert = p[1] || "notice"; state.pollId = p[2] || null; backing = true; }
+    if (viewHist.length) {
+      var p = viewHist.pop().split("|");
+      state.screen = p[0] || "session"; state.sessionId = p[1] || "summer-mt";
+      state.tab = p[2] || "home"; state.alert = p[3] || "notice"; state.pollId = p[4] || null;
+      backing = true;
+    } else if (state.screen !== "hub") { state.screen = "hub"; state.pollId = null; } // 세션 안 → 상위(허브)로
     else { state.tab = "home"; state.pollId = null; }
     render();
   }
 
-  function renderHeader() {
-    var t = CFG.trip || {}, unread = unreadNotifs().length, dd = ddayLabel();
+  function renderHeader(sess) {
+    sess = sess || currentSession() || {};
+    var unread = unreadNotifs().length, dd = ddayLabelOf(sess.startDate);
     $("#app-header").innerHTML =
-      '<button class="hd-back" data-action="nav-back" aria-label="뒤로가기">' + icon("back", 22) + "<span>뒤로</span></button>" +
-      '<div class="hd-left"><div class="hd-title">' + esc(t.title || "MT") + "</div>" +
-      '<div class="hd-sub">' + (Store.mode === "demo" ? '<span class="badge-demo">데모</span> ' : "") + (dd ? '<span class="badge-dday">' + dd + "</span>" : "") + (t.subtitle ? " " + esc(t.subtitle) : "") + "</div></div>" +
+      '<button class="hd-back" data-action="nav-back" aria-label="뒤로가기">' + icon("back", 22) + "<span>세션</span></button>" +
+      '<div class="hd-left"><div class="hd-title">' + esc(sess.title || "MT") + "</div>" +
+      '<div class="hd-sub">' + (Store.mode === "demo" ? '<span class="badge-demo">데모</span> ' : "") + (dd ? '<span class="badge-dday">' + dd + "</span>" : "") + (sess.subtitle ? " " + esc(sess.subtitle) : "") + "</div></div>" +
       '<button class="bell-btn" data-action="open-notifs" aria-label="알림">' + icon("bell", 22) + (unread ? '<span class="bell-badge">' + (unread > 9 ? "9+" : unread) + "</span>" : "") + "</button>";
+  }
+  function renderHubHeader() {
+    $("#app-header").innerHTML =
+      '<div class="hd-brand"><span class="hd-brand-emoji">🤙</span>' +
+      '<div><div class="hd-title">슈퍼리치키드</div><div class="hd-sub">우리들의 세션</div></div></div>' +
+      '<button class="me-chip" data-action="open-profile">' + avatar(me, 24) + "<span>" + esc(memberName(me)) + "</span></button>";
   }
   function renderNav() {
     var tabs = [["home", "home", "홈"], ["alert", "megaphone", "알림"], ["carpool", "car", "카풀"], ["photo", "camera", "앨범"], ["my", "user", "마이"]];
@@ -346,20 +479,20 @@
   }
   function gateName() {
     var roster = CFG.roster || [];
-    return '<div class="gate-card"><div class="gate-emoji">🧗</div>' +
+    return '<div class="gate-card"><div class="gate-emoji">' + icon("mountain", 48) + '</div>' +
       "<h1>" + esc((CFG.trip || {}).title || "MT") + "</h1>" +
       '<div class="steps"><span class="step-dot on"></span><span class="step-dot"></span></div>' +
       '<p class="gate-p">본인 이름을 선택하세요. 4자리 인증번호로 입장합니다.<br>어느 기기에서든 같은 인증번호로 들어올 수 있어요.</p>' +
       '<div class="gate-grid" id="gate-grid">' + roster.map(function (m) {
         var dm = obj(DB.members)[m.id] || {};
-        var tag = dm.pin ? '<span class="lock-tag">🔑</span>' : "";
+        var tag = dm.pin ? '<span class="lock-tag">' + icon("key", 16) + '</span>' : "";
         return '<button class="gate-name" data-action="pick-name" data-id="' + m.id + '">' +
           avatar(m.id, 34) + '<span class="nm-main"><span>' + esc(m.name) + "</span>" + roleTag(m.id) + "</span>" + tag + "</button>";
       }).join("") + "</div></div>";
   }
   function gatePin() {
     var id = intro.pick, dm = obj(DB.members)[id] || {}, verify = !!dm.pin;
-    return '<div class="gate-card"><div class="gate-emoji">🔑</div>' +
+    return '<div class="gate-card"><div class="gate-emoji">' + icon("key", 48) + '</div>' +
       "<h1>" + (verify ? "인증번호 입력" : "인증번호 설정") + "</h1>" +
       '<div class="steps"><span class="step-dot on"></span><span class="step-dot on"></span>' + (verify ? "" : '<span class="step-dot"></span>') + "</div>" +
       '<div class="profile-who" style="justify-content:center">' + avatar(id, 40) + "<span>" + esc(memberName(id)) + "</span>" + roleTag(id) + "</div>" +
@@ -376,7 +509,7 @@
     var st = dm.station || "";
     var car = intro.car;
     var dl = (CFG.stations || []).map(function (s) { return '<option value="' + esc(s.n) + '">'; }).join("");
-    return '<div class="gate-card"><div class="gate-emoji">🚏</div>' +
+    return '<div class="gate-card"><div class="gate-emoji">' + icon("pin", 48) + '</div>' +
       "<h1>거의 다 왔어요!</h1>" +
       '<div class="steps"><span class="step-dot on"></span><span class="step-dot on"></span><span class="step-dot on"></span></div>' +
       '<div class="profile-box">' +
@@ -393,9 +526,87 @@
       "</div></div>";
   }
 
+  /* ============================================================
+     상위(허브) 페이지 — 세션 목록
+     ============================================================ */
+  function viewHub() {
+    var list = allSessions(), h = "";
+    if (Store.mode === "demo") h += '<div class="demo-note">📍 <b>데모 모드</b> — 이 기기에만 저장돼요. 실시간 공유는 Firebase 연결 후 켜집니다.</div>';
+    h += '<div class="hub-head"><h1>우리들의 세션</h1><p class="hub-sub">슈퍼리치키드가 함께한 · 함께할 일정을 모아봤어요.</p></div>';
+    h += '<div class="list-grid sess-grid">';
+    list.forEach(function (s) { h += sessionCard(s); });
+    if (isMeAdmin()) h += '<button class="card sess-add" data-action="add-session">' + icon("plus", 24) + "<span>세션 추가하기</span></button>";
+    h += "</div>";
+    return '<div class="hub-wrap">' + h + "</div>";
+  }
+  function sessionCard(s) {
+    var st = sessStatus(s), isApp = s.kind === "app", canDel = s._user && isMeAdmin();
+    return '<div class="card sess-card acc-' + esc(s.accent || "red") + " st-" + st + '" data-action="open-session" data-id="' + esc(s.id) + '">' +
+      '<div class="sc-top"><span class="sc-emoji">' + (s.emoji || "📌") + '</span><span class="sc-badge ' + st + '">' + esc(sessStatusLabel(s)) + "</span></div>" +
+      '<div class="sc-title">' + esc(s.title) + "</div>" +
+      (s.subtitle ? '<div class="sc-subtitle">' + esc(s.subtitle) + "</div>" : "") +
+      '<div class="sc-meta">' +
+        "<div>" + icon("calendar", 14) + " " + esc(dateRangeKo(s.startDate, s.endDate)) + "</div>" +
+        (s.location ? "<div>" + icon("pin", 14) + " " + esc(s.location) + "</div>" : "") +
+        (s.lodging ? "<div>" + icon("home", 14) + " " + esc(s.lodging) + "</div>" : "") +
+      "</div>" +
+      (s.summary ? '<div class="sc-summary">' + esc(s.summary) + "</div>" : "") +
+      '<div class="sc-foot"><span class="sc-tag ' + (isApp ? "live" : "info") + '">' + (isApp ? "실시간 앱" : "일정 정보") + '</span><span class="sc-go">' + (isApp ? "입장" : "자세히") + " ›</span></div>" +
+      (canDel ? '<button class="sc-del" data-action="del-session" data-id="' + esc(s.id) + '" aria-label="세션 삭제">×</button>' : "") +
+      "</div>";
+  }
+
+  /* 읽기전용 세션 상세 (info 카드) */
+  function viewSessionInfo(s) {
+    var d = (s && s.detail) || {}, h = '<div class="sinfo acc-' + esc(s.accent || "red") + '">';
+    h += '<div class="sinfo-hero"><span class="sih-emoji">' + (s.emoji || "📌") + "</span>" +
+      '<div class="sih-badge">' + esc(sessStatusLabel(s)) + "</div>" +
+      '<div class="sih-title">' + esc(s.title) + "</div>" +
+      (s.subtitle ? '<div class="sih-sub">' + esc(s.subtitle) + "</div>" : "") +
+      '<div class="sih-meta">' +
+        "<div>" + icon("calendar", 14) + " " + esc(dateRangeKo(s.startDate, s.endDate)) + "</div>" +
+        (s.location ? "<div>" + icon("pin", 14) + " " + esc(s.location) + (s.address ? " · " + esc(s.address) : "") + "</div>" : "") +
+        (s.lodging ? "<div>" + icon("home", 14) + " " + esc(s.lodging) + "</div>" : "") +
+      "</div></div>";
+    if (d.intro && d.intro.length) { h += '<div class="sinfo-intro">'; d.intro.forEach(function (line) { h += '<div class="sii">' + linkify(esc(line)) + "</div>"; }); h += "</div>"; }
+    (d.sections || []).forEach(function (sec) {
+      h += '<div class="card sinfo-sec"><h2 class="sis-title">' + (sec.icon ? '<span class="sis-ic">' + icon(sec.icon, 16) + "</span>" : "") + esc(sec.title) + "</h2>";
+      if (sec.rows && sec.rows.length) { h += '<div class="sis-rows">'; sec.rows.forEach(function (r) { h += '<div class="sir"><div class="sir-k">' + esc(r[0]) + '</div><div class="sir-v">' + linkify(esc(r[1])) + "</div></div>"; }); h += "</div>"; }
+      if (sec.bullets && sec.bullets.length) { h += '<ul class="sis-bul">'; sec.bullets.forEach(function (b) { h += "<li>" + linkify(esc(b)) + "</li>"; }); h += "</ul>"; }
+      if (sec.checklist && sec.checklist.length) { h += '<ul class="sis-chk">'; sec.checklist.forEach(function (c) { h += "<li>" + icon("check", 15) + "<span>" + linkify(esc(c)) + "</span></li>"; }); h += "</ul>"; }
+      if (sec.note) h += '<div class="sis-note">' + linkify(esc(sec.note)) + "</div>";
+      if (sec.foot) h += '<div class="sis-foot">' + linkify(esc(sec.foot)) + "</div>";
+      if (sec.link) h += '<a class="sis-link" href="' + esc(sec.link.url) + '" target="_blank" rel="noopener">' + icon("link", 14) + " " + esc(sec.link.label) + "</a>";
+      h += "</div>";
+    });
+    if (!(d.intro && d.intro.length) && !(d.sections && d.sections.length)) h += '<div class="empty">아직 상세 정보가 없는 세션이에요.<br>운영진이 노션·공지에서 내용을 채워줄 거예요.</div>';
+    if (s.notionUrl) h += '<a class="sinfo-notion" href="' + esc(s.notionUrl) + '" target="_blank" rel="noopener">' + icon("link", 15) + " 노션에서 원본 일정 보기</a>";
+    return h + "</div>";
+  }
+
+  /* 세션 추가 폼 (운영진) */
+  function formAddSession() {
+    if (!isMeAdmin()) return;
+    var emojis = ["🏖️", "🧗", "⛺", "🏔️", "🎿", "🏕️", "🍻", "🎉", "🚗", "🌊", "🍁", "❄️"];
+    var accents = [["red", "레드"], ["blue", "블루"], ["green", "그린"], ["purple", "퍼플"], ["orange", "오렌지"]];
+    openModal("<h2>세션 추가하기</h2>" +
+      '<p class="pf-note" style="margin:0 0 12px">새 일정을 카드로 추가해요. 추가한 카드는 누르면 일정 정보 페이지로 열립니다.</p>' +
+      '<label>이모지</label><div class="emoji-pick" id="f-emoji-wrap">' +
+        emojis.map(function (e, i) { return '<button type="button" class="emoji-b' + (i === 0 ? " on" : "") + '" data-action="pick-emoji" data-e="' + e + '">' + e + "</button>"; }).join("") +
+        '<input type="hidden" id="f-emoji" value="' + emojis[0] + '"></div>' +
+      '<label>제목</label><input id="f-stitle" placeholder="예: 슈퍼리치키드 동계 MT">' +
+      '<label>한 줄 설명 (선택)</label><input id="f-ssub" placeholder="예: 스키 + 온천">' +
+      '<div class="row2"><div><label>시작일</label><input id="f-sstart" type="date"></div>' +
+      '<div><label>종료일</label><input id="f-send" type="date"></div></div>' +
+      '<label>장소 (선택)</label><input id="f-sloc" placeholder="예: 비발디파크">' +
+      '<label>숙소 (선택)</label><input id="f-slodge" placeholder="예: 소노벨 비발디파크">' +
+      '<label>색상</label><div class="seg">' + accents.map(function (a, i) { return '<button type="button" class="seg-b' + (i === 0 ? " on" : "") + '" data-action="pick-accent" data-a="' + a[0] + '">' + a[1] + "</button>"; }).join("") + '<input type="hidden" id="f-saccent" value="red"></div>' +
+      '<div class="modal-foot"><button class="btn-line" data-action="close-modal">취소</button><button class="btn-pri" data-action="save-session">추가</button></div>');
+  }
+
   /* ---------- 홈 ---------- */
   function viewHome() {
-    var t = CFG.trip || {};
+    var t = tripMeta();
     var openPolls = entries(DB.polls).filter(function (kv) { return (kv[1] || {}).status !== "closed"; });
     var packArr = entries(DB.packing);
     var packDone = packArr.filter(function (kv) { var p = kv[1] || {}; return p.type === "personal" ? readyCount(p) >= memberCount() : p.done; }).length;
@@ -514,7 +725,7 @@
   function mySettleCard() {
     var bal = computeBalances(), myNet = Math.round(bal[me] || 0);
     var transfers = minimalTransfers(bal).filter(function (t) { return t.from === me || t.to === me; });
-    var paid = obj((obj(DB.members)[me] || {}).paid);
+    var paid = myPaidMap();
     var h = '<div class="card my-settle big col ' + (myNet > 0 ? "pos" : myNet < 0 ? "neg" : "") + '"><div class="ms-row"><span>' + avatar(me, 28) + " <b>" + esc(memberName(me)) + "</b>님 정산</span><span class=\"ms-amt\">" +
       (myNet > 0 ? "받을 돈 " + won(myNet) : myNet < 0 ? "낼 돈 " + won(-myNet) : "정산 완료 ✓") + "</span></div><div class=\"ms-sub\">낸 돈 " + won(myPaid(me)) + " · 내 몫 " + won(myShare(me)) + "</div>";
     if (transfers.length) {
@@ -548,7 +759,7 @@
   function viewSettle() {
     var h = '<div class="page-head"><h1>정산</h1><button class="btn-pri" data-action="new-expense">+ 지출 추가</button></div>';
     h += mySettleCard();
-    if ((CFG.trip || {}).poolFee) h += '<div class="hint">ℹ️ 수영장 입장권 인당 ' + won(CFG.trip.poolFee) + "은 현장 개별 결제예요. · 정산 완료를 누르면 받을 분에게 알림이 가요.</div>";
+    if (tripMeta().poolFee) h += '<div class="hint">ℹ️ 수영장 입장권 인당 ' + won(tripMeta().poolFee) + "은 현장 개별 결제예요. · 정산 완료를 누르면 받을 분에게 알림이 가요.</div>";
     h += expenseCards();
     return h;
   }
@@ -843,7 +1054,7 @@
   function formSchedule(editId) {
     var s = editId ? obj(DB.schedule)[editId] : null;
     var h = "<h2>" + (editId ? "일정 수정" : "일정 추가") + "</h2>" +
-      '<div class="row2"><div><label>날짜</label><input id="f-day" type="date" value="' + ((s && s.day) || (CFG.trip || {}).startDate || "") + '"></div>' +
+      '<div class="row2"><div><label>날짜</label><input id="f-day" type="date" value="' + ((s && s.day) || tripMeta().startDate || "") + '"></div>' +
       '<div><label>시간</label><input id="f-time" type="time" value="' + ((s && s.time) || "") + '"></div></div>' +
       '<label>제목</label><input id="f-title" placeholder="예: 바베큐 시작" value="' + (s ? esc(s.title) : "") + '">' +
       '<label>장소 (선택)</label><input id="f-place" placeholder="예: 카루소" value="' + (s && s.place ? esc(s.place) : "") + '">' +
@@ -979,6 +1190,39 @@
       return;
     }
 
+    /* 상위(허브) / 세션 */
+    if (a === "go-hub") { state.screen = "hub"; state.pollId = null; render(); return; }
+    if (a === "open-session") {
+      var sid = t.getAttribute("data-id"), so = sessionById(sid);
+      if (!so) return;
+      state.screen = "session"; state.sessionId = sid; state.pollId = null;
+      if (so.kind === "app") state.tab = "home";
+      render(); return;
+    }
+    if (a === "add-session") { formAddSession(); return; }
+    if (a === "pick-emoji") { var em = t.getAttribute("data-e"); var ew = $("#f-emoji"); if (ew) ew.value = em; Array.prototype.forEach.call(document.querySelectorAll("#f-emoji-wrap .emoji-b"), function (b) { b.classList.toggle("on", b.getAttribute("data-e") === em); }); return; }
+    if (a === "pick-accent") { var ac = t.getAttribute("data-a"); var aw = $("#f-saccent"); if (aw) aw.value = ac; Array.prototype.forEach.call(t.parentNode.querySelectorAll(".seg-b"), function (b) { b.classList.toggle("on", b.getAttribute("data-a") === ac); }); return; }
+    if (a === "save-session") {
+      if (!isMeAdmin()) return;
+      var stitle = clampStr(($("#f-stitle") || {}).value, 60);
+      if (!stitle) { alert("세션 제목을 입력해주세요."); return; }
+      var sd = ($("#f-sstart") || {}).value || "", ed = ($("#f-send") || {}).value || "";
+      Store.push("sessions", {
+        kind: "info", emoji: ($("#f-emoji") || {}).value || "📌", accent: ($("#f-saccent") || {}).value || "red",
+        title: stitle, subtitle: clampStr(($("#f-ssub") || {}).value, 40),
+        startDate: sd, endDate: ed || sd,
+        location: clampStr(($("#f-sloc") || {}).value, 60), lodging: clampStr(($("#f-slodge") || {}).value, 60),
+        by: me || null, ts: Date.now()
+      });
+      closeModal(); render(); return;
+    }
+    if (a === "del-session") {
+      if (!isMeAdmin()) return;
+      var dsid = t.getAttribute("data-id"); if (!dsid || dsid.indexOf("db:") !== 0) return;
+      if (confirm("이 세션 카드를 삭제할까요?")) { Store.remove("sessions/" + dsid.slice(3)); render(); }
+      return;
+    }
+
     /* 탭 */
     if (a === "nav-back") { goBack(); return; }
     if (a === "tab") { var nt = t.getAttribute("data-tab"); if (nt !== "photo") photoSel = {}; state.tab = nt; state.pollId = null; render(); return; }
@@ -1019,11 +1263,11 @@
       ev.stopPropagation();
       var sdTo = t.getAttribute("data-to"), sdAmt = Number(t.getAttribute("data-amt")) || 0;
       if (!sdTo) return;
-      Store.set("members/" + me + "/paid/" + sdTo, true);
+      Store.set(paidWritePath(sdTo), true);
       notify(sdTo, memberName(me) + "님이 " + won(sdAmt) + " 정산 완료를 알렸어요.", "settle");
       return;
     }
-    if (a === "settle-undo") { ev.stopPropagation(); var suTo = t.getAttribute("data-to"); if (suTo) Store.remove("members/" + me + "/paid/" + suTo); return; }
+    if (a === "settle-undo") { ev.stopPropagation(); var suTo = t.getAttribute("data-to"); if (suTo) Store.remove(paidWritePath(suTo)); return; }
     if (a === "new-expense") { formNewExpense(null); return; }
     if (a === "edit-expense") { formNewExpense(t.getAttribute("data-id")); return; }
     if (a === "save-expense") { saveExpense(t.getAttribute("data-edit")); return; }
@@ -1220,7 +1464,7 @@
     if (!file || file.type.indexOf("image/") !== 0) { alert("이미지 파일을 선택하세요."); return; }
     heroBusy = true; render();
     resizeImageFile(file, 1600).then(clUpload).then(function (j) {
-      if (j && j.secure_url) { Store.update("trip", { heroImage: j.secure_url }); CFG.trip.heroImage = j.secure_url; }
+      if (j && j.secure_url) { Store.update("trip", { heroImage: j.secure_url }); if (DB.trip) DB.trip.heroImage = j.secure_url; else DB.trip = { heroImage: j.secure_url }; }
       else alert("업로드 실패: " + ((j && j.error && j.error.message) || "Cloudinary 설정 확인"));
     }).catch(function () { alert("배경 이미지 업로드 오류가 발생했어요."); }).then(function () { heroBusy = false; render(); });
   }
@@ -1232,8 +1476,10 @@
      부팅
      ============================================================ */
   Store.onRoot(function (root) {
-    DB = root || {};
-    if (!booted) { booted = true; if (seedIfEmpty(DB)) return; }
+    RAW = root || {};
+    if (!booted) { booted = true; if (seedIfEmpty(RAW)) return; }
+    if (!sessSeeded) { sessSeeded = true; ensureSessionSeeds(); }
+    rebuildDB();
     if (me && DB.members && Object.keys(DB.members).length) {
       var dmme = DB.members[me];
       // 이 기기는 localStorage(srk_me)로 기억됨 → 입장 유지. 이름이 사라졌거나 입장 해제(인증 초기화)됐으면 게이트로.
