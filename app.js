@@ -17,7 +17,7 @@
   localStorage.setItem("srk_token", MYTOKEN);
   var state = { screen: "clubs", clubId: null, sessionId: "summer-mt", tab: "home", pollId: null, alert: "notice" };
   var viewHist = [], lastSig = null, backing = false; // 뒤로가기용 화면 히스토리
-  var intro = { step: "name", pick: null, car: false };
+  var intro = { step: "name", pick: null, car: false, newName: null };
   var booted = false;
   var photoSel = {};      // 선택된 사진 key 맵
   var photoUploading = 0; // 업로드 중인 장수
@@ -46,7 +46,7 @@
   var _kc = 0;
   function key() { return "k" + Date.now().toString(36) + (_kc++).toString(36) + Math.random().toString(36).slice(2, 6); }
 
-  function memberName(id) { var m = obj(DB.members)[id]; if (m && m.name) return m.name; var r = rosterEntry(id); return r ? r.name : (id || "?"); }
+  function memberName(id) { if (id && intro.newName && id === intro.pick) return intro.newName; var m = obj(DB.members)[id]; if (m && m.name) return m.name; var r = rosterEntry(id); return r ? r.name : (id || "?"); }
   // 위계: manager(관리자) > staff(운영진) > crew(크루원). 레거시 admin:true → staff로 간주
   function roleOf(id) { var m = obj(DB.members)[id] || {}; if (m.role) return m.role; if (m.admin) return "staff"; var r = rosterEntry(id); return (r && r.role) || "crew"; }
   function isManager(id) { return roleOf(id) === "manager"; }
@@ -158,8 +158,17 @@
   function clubById(id) { if (id && id.indexOf("dbc:") === 0) { var k = id.slice(4), v = obj(DB.clubs)[k]; if (!v) return null; var c = Object.assign({}, v); c.id = id; c._user = true; c._key = k; return c; } var f = null; (CFG.clubs || []).forEach(function (x) { if (x.id === id) f = x; }); return f; }
   function currentClub() { return clubById(state.clubId) || (CFG.clubs || [])[0] || null; }
   function sessionsOfClub(cid) { return allSessions().filter(function (s) { return (s.clubId || "srk") === (cid || "srk"); }); }
-  function clubRoster(cid) { cid = cid || state.clubId || "srk"; var c = clubById(cid); if (c && c.roster && c.roster.length) return c.roster; if (cid === "srk") return CFG.roster || []; return []; }
-  function rosterEntry(id) { var f = (CFG.roster || []).filter(function (r) { return r.id === id; })[0]; if (f) return f; var cs = allClubs(); for (var i = 0; i < cs.length; i++) { var rs = cs[i].roster || []; for (var j = 0; j < rs.length; j++) { if (rs[j].id === id) return rs[j]; } } return null; }
+  function clubRoster(cid) {
+    cid = cid || state.clubId || "srk";
+    var c = clubById(cid), base = [];
+    if (c && c.roster && c.roster.length) base = c.roster.slice();
+    else if (cid === "srk") base = (CFG.roster || []).slice();
+    var seen = {}; base.forEach(function (r) { seen[r.id] = 1; });
+    var dyn = obj((obj(DB.roster) || {})[cid]);
+    Object.keys(dyn).forEach(function (k) { if (!seen[k]) { var e = dyn[k] || {}; base.push({ id: k, name: e.name || k, role: e.role || "crew", self: true }); seen[k] = 1; } });
+    return base;
+  }
+  function rosterEntry(id) { var f = (CFG.roster || []).filter(function (r) { return r.id === id; })[0]; if (f) return f; var cs = allClubs(); for (var i = 0; i < cs.length; i++) { var rs = cs[i].roster || []; for (var j = 0; j < rs.length; j++) { if (rs[j].id === id) return rs[j]; } } var dr = obj(DB.roster); for (var ck in dr) { if (dr[ck] && dr[ck][id]) return { id: id, name: (dr[ck][id].name || id), role: (dr[ck][id].role || "crew") }; } return null; }
 
   /* 역 → 권역 */
   var STN_MAP = {}; (CFG.stations || []).forEach(function (s) { STN_MAP[s.n] = s.c; });
@@ -244,7 +253,7 @@
   function rebuildDB() {
     var base = sessionData();
     DB = {
-      members: RAW.members, notifications: RAW.notifications, sessions: RAW.sessions, clubs: RAW.clubs,  // 전역
+      members: RAW.members, notifications: RAW.notifications, sessions: RAW.sessions, clubs: RAW.clubs, roster: RAW.roster,  // 전역
       trip: base.trip, notices: base.notices, schedule: base.schedule, packing: base.packing,
       polls: base.polls, expenses: base.expenses, photos: base.photos,
       participants: base.participants, paid: base.paid, received: base.received, rides: base.rides
@@ -506,7 +515,8 @@
   /* ---------- 인트로 (이름 → 출발역 → 자차) ---------- */
   function renderGate() {
     var g = $("#gate"); g.classList.remove("hidden");
-    if (intro.step === "pin" && intro.pick) g.innerHTML = gatePin();
+    if (intro.step === "newname") g.innerHTML = gateNewName();
+    else if (intro.step === "pin" && intro.pick) g.innerHTML = gatePin();
     else if (intro.step === "profile" && intro.pick) g.innerHTML = gateProfile();
     else g.innerHTML = gateName();
     bindPin($("#i-pin"), $("#pin-cells"), $("#pin-err"));
@@ -524,7 +534,24 @@
         var tag = dm.pin ? '<span class="lock-tag">' + icon("key", 16) + '</span>' : "";
         return '<button class="gate-name" data-action="pick-name" data-id="' + m.id + '">' +
           avatar(m.id, 34) + '<span class="nm-main"><span>' + esc(m.name) + "</span>" + roleTag(m.id) + "</span>" + tag + "</button>";
-      }).join("") + "</div></div>";
+      }).join("") + "</div>" +
+      '<button class="gate-add" data-action="self-join">' + icon("plus", 18) + "<span>명단에 없어요 · 직접 추가</span></button>" +
+      "</div>";
+  }
+  function gateNewName() {
+    var club = currentClub() || {};
+    return '<div class="gate-card">' +
+      '<button class="gate-back" data-action="self-join-back" aria-label="명단으로">' + icon("back", 18) + "<span>명단으로</span></button>" +
+      '<div class="gate-emoji">' + icon("user", 44) + "</div>" +
+      "<h1>이름 입력</h1>" +
+      '<div class="steps"><span class="step-dot on"></span><span class="step-dot"></span><span class="step-dot"></span></div>' +
+      '<div class="gate-sess">' + esc(club.name || "") + "</div>" +
+      '<p class="gate-p">' + esc(club.name || "동호회") + " 명단에 없다면 직접 추가해 입장하세요.<br>운영진이 나중에 확인할 수 있어요.</p>" +
+      '<div class="fld" style="text-align:left;margin-top:4px"><label>이름</label><input type="text" id="i-newname" maxlength="20" placeholder="본인 이름" autocomplete="off"></div>' +
+      '<div id="newname-err" class="pin-err"></div>' +
+      '<div class="intro-foot"><button class="btn-line" data-action="self-join-back">‹ 뒤로</button>' +
+      '<button class="btn-pri" data-action="self-name-next">다음 →</button></div>' +
+      "</div>";
   }
   function gatePin() {
     var id = intro.pick, dm = obj(DB.members)[id] || {}, verify = !!dm.pin, sess = currentSession() || {};
@@ -1227,17 +1254,26 @@
 
     /* 인트로 */
     if (a === "pick-name") { intro.pick = t.getAttribute("data-id"); intro.car = !!(obj(DB.members)[intro.pick] || {}).hasCar; intro.step = "pin"; renderGate(); return; }
+    if (a === "self-join") { intro.step = "newname"; intro.pick = null; intro.newName = null; renderGate(); var nf = $("#i-newname"); if (nf) nf.focus(); return; }
+    if (a === "self-join-back") { intro.step = "name"; intro.pick = null; intro.newName = null; renderGate(); return; }
+    if (a === "self-name-next") {
+      var nn = (($("#i-newname") || {}).value || "").trim().replace(/\s+/g, " ");
+      if (nn.length < 1) { $("#newname-err").textContent = "이름을 입력해주세요."; return; }
+      if (nn.length > 20) nn = nn.slice(0, 20);
+      if (clubRoster().some(function (r) { return r.name === nn; })) { $("#newname-err").textContent = "이미 명단에 있는 이름이에요. 뒤로 가서 목록에서 본인 이름을 선택해 주세요."; return; }
+      intro.newName = nn; intro.pick = "u" + key(); intro.car = false; intro.pinValue = null; intro.step = "pin"; renderGate(); return;
+    }
     if (a === "pin-submit") {
       var pinv = (($("#i-pin") || {}).value || "").replace(/\D/g, "");
       var pid0 = intro.pick, dmp = obj(DB.members)[pid0] || {};
       if (pinv.length !== 4) { $("#pin-err").textContent = "숫자 4자리를 입력하세요."; return; }
       if (dmp.pin) { // 검증
-        if (hashPin(pinv) === dmp.pin) { me = pid0; localStorage.setItem("srk_me", me); intro.step = "name"; intro.pick = null; closeModal(); render(); }
+        if (hashPin(pinv) === dmp.pin) { me = pid0; localStorage.setItem("srk_me", me); intro.step = "name"; intro.pick = null; intro.newName = null; closeModal(); render(); }
         else { $("#pin-err").textContent = "인증번호가 달라요. 다시 입력해주세요."; var pe = $("#i-pin"); if (pe) { pe.value = ""; pe.focus(); } }
       } else { intro.pinValue = pinv; intro.step = "profile"; renderGate(); } // 신규 설정 → 프로필로
       return;
     }
-    if (a === "intro-back") { intro.step = (intro.step === "profile") ? "pin" : "name"; renderGate(); return; }
+    if (a === "intro-back") { intro.step = (intro.step === "profile") ? "pin" : (intro.newName ? "newname" : "name"); if (intro.step === "newname") intro.pick = null; renderGate(); return; }
     if (a === "set-car") { intro.car = t.getAttribute("data-v") === "1"; $("#car-yes").classList.toggle("on", intro.car); $("#car-no").classList.toggle("on", !intro.car); return; }
     if (a === "intro-submit") { submitIntro(); return; }
 
@@ -1252,7 +1288,7 @@
     if (a === "save-profile") { var pon = $("#p-car-yes").classList.contains("on"); var upd = { station: cleanStation($("#p-station").value), hasCar: pon }; Store.update("members/" + me, upd); if (pon) Store.set(rideWritePath(me), null); closeModal(); return; }
     if (a === "switch-me") {
       if (confirm("이 기기에서 로그아웃할까요?\n(이름·인증번호는 그대로 유지되고, 언제든 인증번호로 다시 입장할 수 있어요)")) {
-        me = null; localStorage.removeItem("srk_me"); intro.step = "name"; intro.pick = null; closeModal(); renderGate();
+        me = null; localStorage.removeItem("srk_me"); intro.step = "name"; intro.pick = null; intro.newName = null; closeModal(); renderGate();
       }
       return;
     }
@@ -1450,17 +1486,27 @@
 
   function submitIntro() {
     var id = intro.pick; if (!id) return;
+    var isNew = !!intro.newName, cid = state.clubId || "srk", newName = intro.newName;
     var station = cleanStation($("#i-station").value), hasCar = intro.car, pinHash = hashPin(intro.pinValue || "");
     Store.tx("members/" + id, function (m) {
-      if (!m) { var r = clubRoster().find(function (x) { return x.id === id; }) || rosterEntry(id) || {}; m = { name: r.name, role: r.role || "crew" }; }
+      if (!m) {
+        if (isNew) m = { name: newName, role: "crew" };
+        else { var r = clubRoster().find(function (x) { return x.id === id; }) || rosterEntry(id) || {}; m = { name: r.name, role: r.role || "crew" }; }
+      }
       if (m.pin && m.pin !== pinHash) return undefined; // 누가 먼저 인증번호를 설정함 → 중단
       m.claimed = true; m.pin = pinHash; m.claimedAt = Date.now(); m.station = station; m.hasCar = !!hasCar;
+      if (isNew) { m.name = newName; m.clubId = cid; m.self = true; }
       return m;
     }).then(function (ok) {
       if (!ok) { alert("앗, 방금 다른 분이 이 이름의 인증번호를 먼저 설정했어요. 본인이면 인증번호로 입장해주세요."); intro.step = "pin"; renderGate(); return; }
       DB.members = DB.members || {};
       DB.members[id] = Object.assign({}, DB.members[id], { claimed: true, pin: pinHash, station: station, hasCar: !!hasCar });
-      me = id; localStorage.setItem("srk_me", me); intro.step = "name"; intro.pick = null; intro.pinValue = null; closeModal(); render();
+      if (isNew) {
+        DB.members[id].name = newName; DB.members[id].clubId = cid; DB.members[id].self = true;
+        Store.set("roster/" + cid + "/" + id, { name: newName, role: "crew", self: true, ts: Date.now() });
+        DB.roster = DB.roster || {}; DB.roster[cid] = DB.roster[cid] || {}; DB.roster[cid][id] = { name: newName, role: "crew", self: true };
+      }
+      me = id; localStorage.setItem("srk_me", me); intro.step = "name"; intro.pick = null; intro.pinValue = null; intro.newName = null; closeModal(); render();
     });
   }
   function doVote(pid, oid) {

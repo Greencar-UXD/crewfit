@@ -738,3 +738,5 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 .sc-tag.cat { color: var(--text-secondary); background: var(--surface-sunken); }
 .tl-edit { background: none; border: none; color: var(--muted); padding: 4px; display: inline-flex; align-items: center; cursor: pointer; flex: none; }
+.gate-add { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 12px; padding: 13px; border: 1.5px dashed var(--border-strong, var(--line)); border-radius: var(--r-md, 10px); background: var(--surface-sunken, transparent); color: var(--text-secondary, var(--muted)); font-size: 14px; font-weight: 600; cursor: pointer; }
+.gate-add:hover { border-color: var(--accent, var(--pri)); color: var(--accent, var(--pri)); }
