@@ -711,7 +711,7 @@
     var canEdit = isMeAdmin() || p.createdBy === me;
     var h = '<div class="page-head"><button class="back" data-action="back-vote">‹ 투표</button>' +
       (canEdit ? '<button class="link-danger" data-action="del-poll" data-id="' + id + '">삭제</button>' : "") + "</div>";
-    h += '<div class="card poll-detail"><div class="pd-type">' + (p.type === "multi" ? "여러 개 선택 가능" : "하나만 선택") + (closed ? ' · <span class="closed-tag">마감됨</span>' : "") + "</div>" +
+    h += '<div class="card poll-detail"><div class="pd-type">' + (p.type === "multi" ? "여러 개 선택 가능" : "하나만 선택" + (closed ? "" : " · 다시 누르면 취소")) + (closed ? ' · <span class="closed-tag">마감됨</span>' : "") + "</div>" +
       '<h1 class="pd-title">' + esc(p.title) + "</h1>" + (p.desc ? '<p class="pd-desc">' + esc(p.desc) + "</p>" : "") + (closed && maxCnt > 0 ? '<div class="pd-result">' + icon("check", 15) + " 결정: " + opts.filter(function (o) { return countVotes(p, o[0]) === maxCnt; }).map(function (o) { return esc(o[1].label); }).join(" · ") + " (" + maxCnt + "표)</div>" : "");
     opts.forEach(function (o) {
       var oid = o[0], cnt = countVotes(p, oid), pct = voters ? Math.round(cnt / voters * 100) : 0;
@@ -1274,7 +1274,7 @@
     /* 투표 */
     if (a === "open-poll") { state.tab = "alert"; state.alert = "vote"; state.pollId = t.getAttribute("data-id"); render(); return; }
     if (a === "back-vote") { state.pollId = null; render(); return; }
-    if (a === "vote") { ev.stopPropagation(); doVote(t.getAttribute("data-poll"), t.getAttribute("data-opt")); return; }
+    if (a === "vote") { ev.stopPropagation(); if (t.getAttribute("data-busy")) return; t.setAttribute("data-busy", "1"); t.classList.add("opt-busy"); doVote(t.getAttribute("data-poll"), t.getAttribute("data-opt")); return; }
     if (a === "new-poll") { if (isMeAdmin()) formNewPoll(); return; }
     if (a === "add-opt-field") { $("#f-opts").insertAdjacentHTML("beforeend", optInput("")); return; }
     if (a === "save-poll") { savePoll(); return; }
