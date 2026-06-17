@@ -15,7 +15,7 @@
   var me = localStorage.getItem("srk_me") || null;
   var MYTOKEN = localStorage.getItem("srk_token") || ("t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
   localStorage.setItem("srk_token", MYTOKEN);
-  var state = { screen: "clubs", clubId: null, sessionId: "summer-mt", tab: "home", pollId: null, alert: "notice" };
+  var state = { screen: "clubs", clubId: null, sessionId: "summer-mt", tab: "home", pollId: null, alert: "notice", hubTab: "schedule" };
   var viewHist = [], lastSig = null, backing = false; // 뒤로가기용 화면 히스토리
   var intro = { step: "name", pick: null, car: false, newName: null };
   var booted = false;
@@ -169,6 +169,19 @@
     return base;
   }
   function rosterEntry(id) { var f = (CFG.roster || []).filter(function (r) { return r.id === id; })[0]; if (f) return f; var cs = allClubs(); for (var i = 0; i < cs.length; i++) { var rs = cs[i].roster || []; for (var j = 0; j < rs.length; j++) { if (rs[j].id === id) return rs[j]; } } var dr = obj(DB.roster); for (var ck in dr) { if (dr[ck] && dr[ck][id]) return { id: id, name: (dr[ck][id].name || id), role: (dr[ck][id].role || "crew") }; } return null; }
+  function clubHasRanking(c) { return !!(c && c.sport === "billiards"); }
+  function clubMatches(cid) { cid = cid || state.clubId; var m = obj((obj(DB.clubmatches) || {})[cid]); return Object.keys(m).map(function (k) { var x = Object.assign({}, m[k]); x._key = k; return x; }).sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); }); }
+  function billiardsStats(cid) {
+    var agg = {};
+    function ensure(id) { if (!agg[id]) agg[id] = { id: id, games: 0, wins: 0, score: 0, innings: 0, highRun: 0, lastTarget: 0, ts: 0 }; return agg[id]; }
+    clubMatches(cid).forEach(function (m) {
+      if (!m.p1 || !m.p2) return;
+      [m.p1, m.p2].forEach(function (p) { if (!p || !p.id) return; var a = ensure(p.id); a.games++; a.score += (+p.score || 0); a.innings += (+p.innings || 0); if ((+p.highRun || 0) > a.highRun) a.highRun = +p.highRun; if ((m.ts || 0) >= a.ts) { a.ts = m.ts || 0; a.lastTarget = +p.target || a.lastTarget; } });
+      if (m.winner) ensure(m.winner).wins++;
+    });
+    return Object.keys(agg).map(function (id) { var a = agg[id]; a.avg = a.innings ? a.score / a.innings : 0; a.winRate = a.games ? a.wins / a.games : 0; a.name = memberName(id); return a; }).sort(function (x, y) { return y.avg - x.avg || y.winRate - x.winRate || y.games - x.games; });
+  }
+  function fmtAvg(v) { return (Math.round((v || 0) * 1000) / 1000).toFixed(3); }
 
   /* 역 → 권역 */
   var STN_MAP = {}; (CFG.stations || []).forEach(function (s) { STN_MAP[s.n] = s.c; });
@@ -253,7 +266,7 @@
   function rebuildDB() {
     var base = sessionData();
     DB = {
-      members: RAW.members, notifications: RAW.notifications, sessions: RAW.sessions, clubs: RAW.clubs, roster: RAW.roster,  // 전역
+      members: RAW.members, notifications: RAW.notifications, sessions: RAW.sessions, clubs: RAW.clubs, roster: RAW.roster, clubmatches: RAW.clubmatches,  // 전역
       trip: base.trip, notices: base.notices, schedule: base.schedule, packing: base.packing,
       polls: base.polls, expenses: base.expenses, photos: base.photos,
       participants: base.participants, paid: base.paid, received: base.received, rides: base.rides
@@ -613,15 +626,110 @@
       "</div>";
   }
   function viewHub() {
-    var club = currentClub() || {}, list = sessionsOfClub(state.clubId), h = "";
-    if (Store.mode === "demo") h += '<div class="demo-note">⚠️ <b>오프라인 임시 모드</b> — 실시간 연결이 안 돼, 지금 입력한 투표·정산·공지는 이 기기에만 저장되고 다른 크루원에겐 안 보여요. <button class="link" data-action="reload-app">새로고침</button> 후 다시 시도해 주세요.</div>';
-    h += '<div class="hub-head"><h1>' + esc(club.name || "세션") + '</h1><p class="hub-sub">' + esc(club.desc || sportLabel(club.sport)) + ' · 함께할 일정</p></div>';
-    h += '<div class="list-grid sess-grid">';
+    var club = currentClub() || {}, h = "";
+    if (Store.mode === "demo") h += '<div class="demo-note">⚠️ <b>오프라인 임시 모드</b> — 실시간 연결이 안 돼, 지금 입력한 내용은 이 기기에만 저장되고 다른 멤버에겐 안 보여요. <button class="link" data-action="reload-app">새로고침</button> 후 다시 시도해 주세요.</div>';
+    h += '<div class="hub-head"><h1>' + esc(club.name || "세션") + '</h1><p class="hub-sub">' + esc(club.desc || sportLabel(club.sport)) + '</p></div>';
+    var ranking = clubHasRanking(club);
+    var tabs = [["schedule", "일정"], ["members", "멤버"]]; if (ranking) tabs.push(["ranking", "순위"]);
+    var cur = state.hubTab || "schedule"; if (cur === "ranking" && !ranking) cur = "schedule";
+    h += '<div class="hub-subnav">' + tabs.map(function (t) { return '<button class="hsub' + (cur === t[0] ? " on" : "") + '" data-action="hub-tab" data-tab="' + t[0] + '">' + t[1] + "</button>"; }).join("") + "</div>";
+    if (cur === "members") h += hubMembers(club);
+    else if (cur === "ranking") h += hubRanking(club);
+    else h += hubSchedule(club);
+    return '<div class="hub-wrap">' + h + "</div>";
+  }
+  function hubSchedule(club) {
+    var list = sessionsOfClub(club.id), h = '<div class="list-grid sess-grid">';
     list.forEach(function (s) { h += sessionCard(s); });
     if (isMeAdmin()) h += '<button class="card sess-add" data-action="add-session">' + icon("plus", 24) + "<span>세션 추가하기</span></button>";
     h += "</div>";
+    if (!list.length && !isMeAdmin()) h += '<div class="empty-msg">아직 등록된 일정이 없어요.</div>';
     if (isMeAdmin() && club._user) h += '<div class="card" style="margin-top:12px"><h2 class="sec" style="margin:0 0 12px">동호회 관리</h2><button class="btn-line btn-block" data-action="edit-club" data-id="' + esc(club.id) + '">동호회 정보 수정</button><button class="link-danger" data-action="del-club" data-id="' + esc(club.id) + '" style="display:block;width:100%;text-align:center;margin-top:12px">동호회 삭제</button></div>';
-    return '<div class="hub-wrap">' + h + "</div>";
+    return h;
+  }
+  function hubMembers(club) {
+    var roster = clubRoster(club.id), bill = clubHasRanking(club), stats = {};
+    if (bill) billiardsStats(club.id).forEach(function (a) { stats[a.id] = a; });
+    var h = '<div class="mem-list-club">';
+    roster.forEach(function (r) {
+      var dm = obj(DB.members)[r.id] || {};
+      var sub = (bill && stats[r.id] && stats[r.id].games) ? ("에버리지 " + fmtAvg(stats[r.id].avg) + " · " + stats[r.id].games + "전") : (dm.claimed ? "입장함" : "미입장");
+      h += '<div class="mem-row">' + avatar(r.id, 32) + '<div><div class="mr-name">' + esc(r.name) + " " + roleTag(r.id) + '</div><div class="mr-sub">' + esc(sub) + '</div></div></div>';
+    });
+    h += "</div>";
+    h += '<div class="hint" style="margin-top:12px">멤버 ' + roster.length + '명 · 게이트의 "직접 추가"로 누구나 합류할 수 있어요.</div>';
+    return h;
+  }
+  function hubRanking(club) {
+    var cid = club.id, rows = billiardsStats(cid).filter(function (a) { return a.games > 0; });
+    var canRec = !!(me && (obj(DB.members)[me] || {}).claimed && clubRoster(cid).some(function (r) { return r.id === me; }));
+    var h = '<div class="rank-head"><div><h2 class="sec" style="margin:0">3쿠션 순위</h2><div class="hint" style="margin-top:2px">누적 에버리지(득점÷이닝) 기준</div></div>' +
+      (canRec ? '<button class="btn-pri btn-sm" data-action="add-match">대전 기록</button>' : "") + "</div>";
+    if (!rows.length) {
+      h += '<div class="empty-msg">아직 기록된 대전이 없어요.' + (canRec ? ' 위 <b>대전 기록</b>으로 첫 경기를 남겨보세요.' : ' 동호회 멤버로 입장하면 대전을 기록할 수 있어요.') + '</div>';
+    } else {
+      h += '<div class="rank-list">';
+      rows.forEach(function (a, i) {
+        h += '<div class="rank-row">' +
+          '<span class="rk-no rk-' + (i < 3 ? (i + 1) : "n") + '">' + (i + 1) + "</span>" +
+          avatar(a.id, 30) +
+          '<div class="rk-name"><div>' + esc(a.name) + '</div><div class="rk-sub">' + a.games + '전 ' + a.wins + '승 · 하이런 ' + a.highRun + '</div></div>' +
+          '<div class="rk-avg"><div class="rk-avg-n">' + fmtAvg(a.avg) + '</div><div class="rk-avg-l">에버리지</div></div>' +
+          "</div>";
+      });
+      h += "</div>";
+    }
+    var ms = clubMatches(cid);
+    if (ms.length) {
+      h += '<h2 class="sec" style="margin-top:24px">최근 대전</h2><div class="match-list">';
+      ms.slice(0, 12).forEach(function (m) {
+        if (!m.p1 || !m.p2) return;
+        var w = m.winner, canDel = (m.by === me || canManage(me));
+        h += '<div class="match-row">' +
+          '<span class="mt-p' + (w === m.p1.id ? " win" : "") + '">' + esc(memberName(m.p1.id)) + ' <b>' + (+m.p1.score || 0) + '</b></span>' +
+          '<span class="mt-vs">' + (+m.p1.innings || 0) + '이닝</span>' +
+          '<span class="mt-p right' + (w === m.p2.id ? " win" : "") + '"><b>' + (+m.p2.score || 0) + '</b> ' + esc(memberName(m.p2.id)) + '</span>' +
+          (canDel ? '<button class="tl-del" data-action="del-match" data-id="' + m._key + '" aria-label="삭제">×</button>' : "") +
+          "</div>";
+      });
+      h += "</div>";
+    }
+    return h;
+  }
+  function formMatch() {
+    var cid = state.clubId, roster = clubRoster(cid);
+    if (!(me && (obj(DB.members)[me] || {}).claimed && roster.some(function (r) { return r.id === me; }))) { alert("동호회 멤버로 입장한 뒤 기록할 수 있어요."); return; }
+    var opt = function (sel) { return roster.map(function (r) { return '<option value="' + r.id + '"' + (sel === r.id ? " selected" : "") + ">" + esc(r.name) + "</option>"; }).join(""); };
+    var p2def = (roster.filter(function (r) { return r.id !== me; })[0] || {}).id || "";
+    openModal("<h2>3쿠션 대전 기록</h2>" +
+      '<div class="mt-form">' +
+      '<div class="mt-col"><label>선수 1</label><select id="m-p1">' + opt(me) + "</select>" +
+        '<div class="mt-3"><span><label>목표(수지)</label><input id="m-t1" type="number" inputmode="numeric" min="1" placeholder="예 20"></span><span><label>득점</label><input id="m-s1" type="number" inputmode="numeric" min="0"></span><span><label>하이런</label><input id="m-h1" type="number" inputmode="numeric" min="0" placeholder="선택"></span></div></div>' +
+      '<div class="mt-col"><label>선수 2</label><select id="m-p2">' + opt(p2def) + "</select>" +
+        '<div class="mt-3"><span><label>목표(수지)</label><input id="m-t2" type="number" inputmode="numeric" min="1" placeholder="예 15"></span><span><label>득점</label><input id="m-s2" type="number" inputmode="numeric" min="0"></span><span><label>하이런</label><input id="m-h2" type="number" inputmode="numeric" min="0" placeholder="선택"></span></div></div>' +
+      '<label>이닝 수 (공통)</label><input id="m-inn" type="number" inputmode="numeric" min="1" placeholder="예: 25">' +
+      "</div>" +
+      '<div id="m-err" class="pin-err"></div>' +
+      '<div class="modal-foot"><button class="btn-line" data-action="close-modal">취소</button><button class="btn-pri" data-action="save-match">기록</button></div>');
+  }
+  function saveMatch() {
+    var cid = state.clubId, roster = clubRoster(cid);
+    if (!(me && (obj(DB.members)[me] || {}).claimed && roster.some(function (r) { return r.id === me; }))) return;
+    var err = $("#m-err");
+    var p1 = ($("#m-p1") || {}).value, p2 = ($("#m-p2") || {}).value;
+    if (!p1 || !p2 || p1 === p2) { if (err) err.textContent = "서로 다른 두 선수를 골라주세요."; return; }
+    var t1 = +(($("#m-t1") || {}).value) || 0, s1 = +(($("#m-s1") || {}).value) || 0, h1 = +(($("#m-h1") || {}).value) || 0;
+    var t2 = +(($("#m-t2") || {}).value) || 0, s2 = +(($("#m-s2") || {}).value) || 0, h2 = +(($("#m-h2") || {}).value) || 0;
+    var inn = +(($("#m-inn") || {}).value) || 0;
+    if (inn < 1) { if (err) err.textContent = "이닝 수를 입력해주세요."; return; }
+    if (s1 < 0 || s2 < 0) { if (err) err.textContent = "득점을 확인해주세요."; return; }
+    var r1 = t1 > 0 && s1 >= t1, r2 = t2 > 0 && s2 >= t2, winner;
+    if (r1 && !r2) winner = p1; else if (r2 && !r1) winner = p2; else winner = (s1 === s2) ? "" : (s1 > s2 ? p1 : p2);
+    var match = { ts: Date.now(), by: me, sessionId: null, p1: { id: p1, target: t1, score: s1, innings: inn, highRun: h1 }, p2: { id: p2, target: t2, score: s2, innings: inn, highRun: h2 }, winner: winner };
+    var mk = key();
+    Store.set("clubmatches/" + cid + "/" + mk, match);
+    DB.clubmatches = DB.clubmatches || {}; DB.clubmatches[cid] = DB.clubmatches[cid] || {}; DB.clubmatches[cid][mk] = match;
+    closeModal(); render();
   }
   function sessionCard(s) {
     var st = sessStatus(s), isApp = s.kind === "app", canDel = s._user && isMeAdmin();
@@ -1318,6 +1426,10 @@
 
     /* 상위(허브) / 세션 */
     if (a === "go-hub") { state.screen = "hub"; state.pollId = null; render(); return; }
+    if (a === "hub-tab") { state.hubTab = t.getAttribute("data-tab") || "schedule"; render(); return; }
+    if (a === "add-match") { formMatch(); return; }
+    if (a === "save-match") { saveMatch(); return; }
+    if (a === "del-match") { var mk2 = t.getAttribute("data-id"), mc = obj((obj(DB.clubmatches) || {})[state.clubId])[mk2]; if (!mc) return; if (!(mc.by === me || canManage(me))) return; if (confirm("이 대전 기록을 삭제할까요?")) { Store.remove("clubmatches/" + state.clubId + "/" + mk2); if (DB.clubmatches && DB.clubmatches[state.clubId]) delete DB.clubmatches[state.clubId][mk2]; render(); } return; }
     if (a === "reload-app") { location.reload(); return; }
     if (a === "open-session") {
       var sid = t.getAttribute("data-id"), so = sessionById(sid);
@@ -1327,7 +1439,7 @@
       render(); return;
     }
     if (a === "add-session") { formAddSession(); return; }
-    if (a === "open-club") { state.clubId = t.getAttribute("data-id"); state.screen = "hub"; state.pollId = null; render(); return; }
+    if (a === "open-club") { state.clubId = t.getAttribute("data-id"); state.screen = "hub"; state.hubTab = "schedule"; state.pollId = null; render(); return; }
     if (a === "go-clubs") { state.screen = "clubs"; state.clubId = null; state.pollId = null; render(); return; }
     if (a === "create-club") { formAddClub(); return; }
     if (a === "edit-club") { formAddClub(t.getAttribute("data-id")); return; }

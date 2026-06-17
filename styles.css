@@ -740,3 +740,40 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .tl-edit { background: none; border: none; color: var(--muted); padding: 4px; display: inline-flex; align-items: center; cursor: pointer; flex: none; }
 .gate-add { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 12px; padding: 13px; border: 1.5px dashed var(--border-strong, var(--line)); border-radius: var(--r-md, 10px); background: var(--surface-sunken, transparent); color: var(--text-secondary, var(--muted)); font-size: 14px; font-weight: 600; cursor: pointer; }
 .gate-add:hover { border-color: var(--accent, var(--pri)); color: var(--accent, var(--pri)); }
+
+/* 동호회 홈 서브탭 */
+.hub-subnav { display: flex; gap: 4px; margin: 0 0 16px; border-bottom: 1px solid var(--line); }
+.hsub { flex: none; padding: 10px 16px; background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; color: var(--text-secondary, var(--muted)); font-size: 15px; font-weight: 600; cursor: pointer; }
+.hsub.on { color: var(--text-primary, var(--ink)); border-bottom-color: var(--accent, var(--pri)); }
+.empty-msg { padding: 28px 16px; text-align: center; color: var(--text-secondary, var(--muted)); font-size: 14px; line-height: 1.6; border: 1px dashed var(--line); border-radius: var(--r-md, 10px); }
+/* 멤버 목록 */
+.mem-list-club .mem-row { display: flex; align-items: center; gap: 10px; padding: 10px 2px; border-bottom: 1px solid var(--line); }
+.mem-list-club .mem-row:last-child { border-bottom: none; }
+/* 순위 */
+.rank-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.btn-sm { padding: 8px 14px; font-size: 13px; flex: none; white-space: nowrap; }
+.rank-list { display: flex; flex-direction: column; gap: 2px; }
+.rank-row { display: flex; align-items: center; gap: 10px; padding: 10px 2px; border-bottom: 1px solid var(--line); }
+.rank-row:last-child { border-bottom: none; }
+.rk-no { flex: none; width: 24px; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text-secondary, var(--muted)); }
+.rk-1 { color: #d4a017; } .rk-2 { color: #9aa0a6; } .rk-3 { color: #b06a3a; }
+.rk-name { flex: 1; min-width: 0; }
+.rk-name > div:first-child { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk-sub { font-size: 12px; color: var(--text-secondary, var(--muted)); margin-top: 1px; }
+.rk-avg { flex: none; text-align: right; }
+.rk-avg-n { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; font-family: var(--font-mono, monospace); }
+.rk-avg-l { font-size: 10px; color: var(--text-secondary, var(--muted)); }
+/* 최근 대전 */
+.match-list { display: flex; flex-direction: column; gap: 6px; }
+.match-row { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-md, 10px); font-size: 14px; }
+.mt-p { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary, var(--muted)); }
+.mt-p.right { text-align: right; }
+.mt-p.win { color: var(--text-primary, var(--ink)); font-weight: 700; }
+.mt-p b { font-variant-numeric: tabular-nums; }
+.mt-vs { flex: none; font-size: 11px; color: var(--text-secondary, var(--muted)); padding: 2px 6px; background: var(--surface-sunken, transparent); border-radius: 6px; }
+/* 대전 입력 폼 */
+.mt-form .mt-col { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.mt-3 { display: flex; gap: 8px; margin-top: 8px; }
+.mt-3 span { flex: 1; }
+.mt-3 label { font-size: 12px; margin-bottom: 4px; }
+.mt-3 input { width: 100%; }
