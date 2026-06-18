@@ -462,7 +462,7 @@
     if (mode === "info") { $("#gate").classList.add("hidden"); renderHeader(sess); $("#app-nav").innerHTML = ""; setChrome(true); main.innerHTML = viewSessionInfo(sess); window.scrollTo(0, 0); return; }
     // 실시간 앱 세션 — 입장(로그인) 필요
     var m = me && obj(DB.members)[me];
-    var inClub = me && clubRoster().some(function (r) { return r.id === me; });
+    var inClub = me && sessionMemberIds().indexOf(me) >= 0;
     if (!me || !m || !m.claimed || !inClub) { renderGate(); return; }
     $("#gate").classList.add("hidden");
     if (state.tab === "vote" || state.tab === "settle") { state.alert = state.tab === "settle" ? "settle" : "vote"; state.tab = "alert"; }
@@ -546,14 +546,25 @@
   /* ---------- 인트로 (이름 → 출발역 → 자차) ---------- */
   function renderGate() {
     var g = $("#gate"); g.classList.remove("hidden");
+    if (me && (obj(DB.members)[me] || {}).claimed && sessionMemberIds().indexOf(me) < 0 && clubRoster().some(function (r) { return r.id === me; })) { g.innerHTML = gateNotMember(); return; }
     if (intro.step === "newname") g.innerHTML = gateNewName();
     else if (intro.step === "pin" && intro.pick) g.innerHTML = gatePin();
     else if (intro.step === "profile" && intro.pick) g.innerHTML = gateProfile();
     else g.innerHTML = gateName();
     bindPin($("#i-pin"), $("#pin-cells"), $("#pin-err"));
   }
+  function gateNotMember() {
+    var sess = currentSession() || {};
+    return '<div class="gate-card">' +
+      '<button class="gate-back" data-action="go-hub" aria-label="동호회로">' + icon("back", 18) + "<span>동호회</span></button>" +
+      '<div class="gate-emoji"' + (sess.emoji ? ' style="font-size:44px"' : "") + ">" + (sess.emoji ? esc(sess.emoji) : icon("pin", 44)) + "</div>" +
+      "<h1>" + esc(sess.title || "") + "</h1>" +
+      '<p class="gate-p">이 일정은 참여 멤버만 입장할 수 있어요.<br>참여하려면 운영진에게 요청해 주세요.</p>' +
+      '<div class="intro-foot"><button class="btn-pri btn-block" data-action="go-hub">동호회로 돌아가기</button></div>' +
+      "</div>";
+  }
   function gateName() {
-    var roster = clubRoster(), sess = currentSession() || {};
+    var sess = currentSession() || {}, roster = sessionMemberIds().map(function (id) { var r = rosterEntry(id); return r || { id: id, name: memberName(id) }; });
     return '<div class="gate-card">' +
       '<button class="gate-back" data-action="go-hub" aria-label="세션 목록으로">' + icon("back", 18) + "<span>세션 목록</span></button>" +
       '<div class="gate-emoji"' + (sess.emoji ? ' style="font-size:44px"' : "") + '>' + (sess.emoji ? esc(sess.emoji) : icon("mountain", 48)) + '</div>' +
