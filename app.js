@@ -522,22 +522,64 @@
       '<div class="mp-info"><div class="mp-name">' + esc(memberName(me)) + " " + roleBadge(me) + '</div>' +
       '<div class="mp-sub">' + (m.bio ? esc(m.bio) : (m.pin ? "눌러서 프로필 설정" : '<span class="warn">인증번호 미설정 — 눌러서 설정</span>')) + '</div></div>' +
       '<span class="mp-go">' + icon("edit", 18) + '</span></div></div>';
-    h += myMatchStatsHtml();
-    h += '<p class="pf-note" style="text-align:center;margin-top:14px">프로필 카드를 눌러 설정 · 로그아웃</p>';
+    h += myUpcomingHtml();
+    h += myClubsListHtml();
+    h += mySkillStatsHtml();
+    h += '<p class="pf-note" style="text-align:center;margin-top:18px">프로필 카드를 눌러 설정 · 로그아웃</p>';
     return h + "</div>";
   }
-  function myMatchStatsHtml() {
-    var clubs = myClubs().filter(function (c) { return c.sport === "billiards"; }), h = "";
+  function myUpcoming() {
+    var out = [];
+    myClubs().forEach(function (c) {
+      sessionsOfClub(c.id).forEach(function (s) {
+        if (!isSessionDone(s) && s.startDate) out.push({ s: s, club: c });
+      });
+    });
+    return out.sort(function (a, b) { return parseDate(a.s.startDate) - parseDate(b.s.startDate); });
+  }
+  function myUpcomingHtml() {
+    var ups = myUpcoming().slice(0, 4);
+    if (!ups.length) return "";
+    var h = '<h2 class="sec" style="margin-top:18px">다가오는 일정</h2><div class="me-list">';
+    ups.forEach(function (u) {
+      var s = u.s, c = u.club, dd = ddayLabelOf(s.startDate);
+      var title = s.match ? (memberName((s.match.p1 || {}).id) + " vs " + memberName((s.match.p2 || {}).id)) : s.title;
+      h += '<div class="card me-row" data-action="open-session" data-id="' + esc(s.id) + '">' +
+        '<span class="me-em">' + (s.emoji || (s.match ? "🎱" : "📌")) + '</span>' +
+        '<div class="me-mid"><div class="me-tt">' + esc(title) + '</div>' +
+        '<div class="me-ss">' + (c.emoji ? c.emoji + " " : "") + esc(c.name) + ' · ' + esc(dateRangeKo(s.startDate, s.endDate)) + '</div></div>' +
+        '<span class="me-dday">' + esc(dd || "예정") + '</span></div>';
+    });
+    return h + "</div>";
+  }
+  function myClubsListHtml() {
+    var clubs = myClubs();
+    var h = '<h2 class="sec" style="margin-top:18px">내 동호회</h2>';
+    if (!clubs.length) return h + '<div class="empty-msg">아직 속한 동호회가 없어요.</div>';
+    h += '<div class="me-list">';
     clubs.forEach(function (c) {
-      var st = billiardsStats(c.id).filter(function (a) { return a.id === me; })[0];
-      if (!st || !st.games) return;
-      h += '<h2 class="sec" style="margin-top:20px">' + (c.emoji || "🎱") + " " + esc(c.name) + ' 내 기록</h2>';
-      h += '<div class="card"><div class="md-mystat">' +
-        '<div class="ms-stat"><div class="ms-stat-n">' + fmtAvg(st.avg) + '</div><div class="ms-stat-l">에버리지</div></div>' +
-        '<div class="ms-stat"><div class="ms-stat-n">' + st.games + '</div><div class="ms-stat-l">경기</div></div>' +
-        '<div class="ms-stat"><div class="ms-stat-n">' + st.wins + '</div><div class="ms-stat-l">승</div></div>' +
-        '<div class="ms-stat"><div class="ms-stat-n">' + st.highRun + '</div><div class="ms-stat-l">하이런</div></div></div>';
-      var recent = clubMatches(c.id).filter(function (mm) { return mm.p1 && mm.p2 && (mm.p1.id === me || mm.p2.id === me); }).slice(0, 6);
+      var r = clubRoster(c.id).filter(function (x) { return x.id === me; })[0];
+      var role = (r && r.role) || roleOf(me) || "crew";
+      var cls = role === "manager" ? "mgr" : role === "staff" ? "admin" : "crew";
+      var label = role === "manager" ? "관리자" : role === "staff" ? "운영진" : "멤버";
+      var unpaid = clubDues(c.id).filter(function (d) { return !obj(d.paid)[me]; });
+      var owe = unpaid.reduce(function (a, d) { return a + (+d.amount || 0); }, 0);
+      h += '<div class="card me-row" data-action="open-club" data-id="' + esc(c.id) + '">' +
+        '<span class="me-em">' + (c.emoji || "•") + '</span>' +
+        '<div class="me-mid"><div class="me-tt">' + esc(c.name) + '</div>' +
+        '<div class="me-ss">' + esc(sportLabel(c.sport)) + (unpaid.length ? ' · <span class="me-due">미납 회비 ' + won(owe) + '</span>' : "") + '</div></div>' +
+        '<span class="me-tr"><span class="rbadge ' + cls + '">' + label + '</span><span class="me-go">›</span></span></div>';
+    });
+    return h + "</div>";
+  }
+  function msStat(n, l) { return '<div class="ms-stat"><div class="ms-stat-n">' + n + '</div><div class="ms-stat-l">' + l + '</div></div>'; }
+  function mySkillBlock(c) {
+    if (c.sport === "billiards") {
+      var stb = billiardsStats(c.id).filter(function (a) { return a.id === me; })[0];
+      if (!stb || !stb.games) return "";
+      var h = '<div class="card"><div class="mystat-head">' + (c.emoji || "🎱") + " " + esc(c.name) + '</div><div class="md-mystat">' +
+        msStat(fmtAvg(stb.avg), "에버리지") + msStat(stb.games, "경기") + msStat(stb.wins, "승") + msStat(stb.highRun, "하이런") + "</div>";
+      var recent = clubMatches(c.id).filter(function (mm) { return mm.p1 && mm.p2 && (mm.p1.id === me || mm.p2.id === me); }).slice(0, 5);
       if (recent.length) {
         h += '<div class="match-list" style="margin-top:12px">';
         recent.forEach(function (mm) {
@@ -546,20 +588,26 @@
         });
         h += "</div>";
       }
-      h += "</div>";
-    });
-    return h;
+      return h + "</div>";
+    }
+    if (c.sport === "climbing") {
+      var stc = climbStats(c.id).filter(function (a) { return a.id === me; })[0];
+      if (!stc || !stc.sends) return "";
+      return '<div class="card"><div class="mystat-head">' + (c.emoji || "🧗") + " " + esc(c.name) + '</div><div class="md-mystat">' +
+        msStat(fmtGrade(stc.maxGrade), "최고 난이도") + msStat(stc.sends, "완등") + "</div></div>";
+    }
+    if (c.sport === "running") {
+      var str = runStats(c.id).filter(function (a) { return a.id === me; })[0];
+      if (!str || !str.runs) return "";
+      return '<div class="card"><div class="mystat-head">' + (c.emoji || "🏃") + " " + esc(c.name) + '</div><div class="md-mystat">' +
+        msStat(fmtPace(str.bestPace), "베스트 페이스") + msStat(str.runs, "러닝") + msStat(Math.round(str.dist * 10) / 10, "총 km") + "</div></div>";
+    }
+    return "";
   }
-  function myClubsRolesHtml() {
-    var clubs = myClubs();
-    if (!clubs.length) return '<div class="pf-note">아직 속한 동호회가 없어요.</div>';
-    return clubs.map(function (c) {
-      var r = clubRoster(c.id).filter(function (x) { return x.id === me; })[0];
-      var role = (r && r.role) || roleOf(me) || "crew";
-      var cls = role === "manager" ? "mgr" : role === "staff" ? "admin" : "crew";
-      var label = role === "manager" ? "관리자" : role === "staff" ? "운영진" : "멤버";
-      return '<div class="pf-club-row"><span class="pf-club-name">' + (c.emoji ? c.emoji + " " : "") + esc(c.name) + '</span><span class="rbadge ' + cls + '">' + label + '</span></div>';
-    }).join("");
+  function mySkillStatsHtml() {
+    var blocks = myClubs().map(mySkillBlock).filter(function (b) { return b; });
+    if (!blocks.length) return "";
+    return '<h2 class="sec" style="margin-top:18px">내 기록</h2>' + blocks.join("");
   }
   function renderHubHeader(club) {
     club = club || {};
@@ -1711,7 +1759,6 @@
       '<label>한줄 소개</label><input type="text" id="p-bio" maxlength="60" value="' + esc(m.bio || "") + '" placeholder="나를 한 줄로 소개해보세요 (선택)">' +
       '<label>인증번호</label><div class="pf-pin">' + (m.pin ? "설정됨 " : '<b class="warn">미설정 — 다른 기기 입장하려면 설정하세요 </b>') + '<button class="btn-ghost sm" data-action="set-pin">' + (m.pin ? "변경" : "설정") + "</button></div>" +
       '<label>화면 모드</label><div class="seg">' + [["system", "시스템"], ["light", "라이트"], ["dark", "다크"]].map(function (o) { return '<button class="seg-b' + ((localStorage.getItem("srk_theme") || "system") === o[0] ? " on" : "") + '" data-action="set-theme" data-theme="' + o[0] + '">' + o[1] + "</button>"; }).join("") + "</div>" +
-      '<label>소속 동호회</label><div class="pf-clubs">' + myClubsRolesHtml() + '</div>' +
       '<div class="modal-foot"><button class="btn-line" data-action="close-modal">닫기</button><button class="btn-pri" data-action="save-profile">저장</button></div>';
     h += '<button class="btn-line btn-block logout-btn" data-action="switch-me" style="margin-top:16px">' + icon("logout", 18) + " 로그아웃</button>";
     openModal(h);

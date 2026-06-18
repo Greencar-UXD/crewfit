@@ -870,3 +870,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .hd-actions { display: flex; align-items: center; gap: 2px; flex: none; }
 .hd-gear { flex: none; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 12px; color: var(--ink); }
 .hd-gear:active { transform: scale(.94); background: color-mix(in srgb, var(--ink) 6%, transparent); }
+/* 마이페이지: 다가오는 일정 / 내 동호회 / 내 기록 */
+.me-list { display: flex; flex-direction: column; gap: 10px; }
+.me-list .card { margin-bottom: 0; }
+.me-row { display: flex; align-items: center; gap: 12px; width: 100%; cursor: pointer; }
+.me-row:active { transform: scale(.99); }
+.me-em { font-size: 22px; flex: none; width: 30px; text-align: center; line-height: 1; }
+.me-mid { flex: 1; min-width: 0; }
+.me-tt { font-weight: 700; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.me-ss { font-size: 12.5px; color: var(--muted); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.me-due { color: var(--warn); font-weight: 700; }
+.me-tr { flex: none; display: flex; align-items: center; gap: 8px; }
+.me-go { color: var(--muted); font-size: 18px; font-weight: 700; }
+.me-dday { flex: none; font-size: 12px; font-weight: 800; color: var(--pri); background: color-mix(in srgb, var(--pri) 12%, transparent); border-radius: 999px; padding: 4px 11px; }
+.mystat-head { font-weight: 800; font-size: 14px; margin-bottom: 12px; }
