@@ -704,7 +704,7 @@
     return '<div class="gate-card login-card">' +
       '<div class="login-logo">' + LOGO_C + '</div>' +
       '<div class="login-brand">크루핏</div>' +
-      '<p class="gate-p">내게 딱 맞는 크루<br>이름과 인증번호로 로그인하세요.</p>' +
+      '<p class="gate-p">모이고, 즐기고, 함께하다<br>이름과 인증번호로 로그인하세요.</p>' +
       '<div class="fld"><label>이름</label><input type="text" id="i-loginname" placeholder="이름을 입력하세요" autocomplete="off"></div>' +
       '<div class="fld"><label>인증번호 (4자리)</label>' + pinCellsHtml("i-pin", "pin-cells") + '</div>' +
       '<div id="login-err" class="pin-err"></div>' +
