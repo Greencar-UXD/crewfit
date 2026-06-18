@@ -155,7 +155,7 @@
   function currentSession() { return sessionById(state.sessionId) || (CFG.sessions || [])[0] || null; }
   function sportLabel(sp) { return ({ climbing: "클라이밍", billiards: "당구", running: "러닝", general: "일반" })[sp] || "동호회"; }
   function allClubs() { var built = (CFG.clubs || []).slice(); var user = entries(obj(DB.clubs)).map(function (kv) { var c = Object.assign({}, kv[1]); c.id = "dbc:" + kv[0]; c._user = true; c._key = kv[0]; return c; }); return built.concat(user); }
-  function clubById(id) { if (id && id.indexOf("dbc:") === 0) { var k = id.slice(4), v = obj(DB.clubs)[k]; if (!v) return null; var c = Object.assign({}, v); c.id = id; c._user = true; c._key = k; return c; } var f = null; (CFG.clubs || []).forEach(function (x) { if (x.id === id) f = x; }); return f; }
+  function clubById(id) { if (id && id.indexOf("dbc:") === 0) { var k = id.slice(4), v = obj(DB.clubs)[k]; if (!v) return null; var c = Object.assign({}, v); c.id = id; c._user = true; c._key = k; return c; } var f = null; (CFG.clubs || []).forEach(function (x) { if (x.id === id) f = x; }); if (f) { var ov = obj((obj(DB.clubmeta) || {})[id]); return Object.assign({}, f, ov); } return f; }
   function currentClub() { return clubById(state.clubId) || (CFG.clubs || [])[0] || null; }
   function sessionsOfClub(cid) { return allSessions().filter(function (s) { return (s.clubId || "srk") === (cid || "srk"); }); }
   function clubRoster(cid) {
@@ -282,7 +282,7 @@
   function rebuildDB() {
     var base = sessionData();
     DB = {
-      members: RAW.members, notifications: RAW.notifications, sessions: RAW.sessions, clubs: RAW.clubs, roster: RAW.roster, clubmatches: RAW.clubmatches, clubrecords: RAW.clubrecords,  // 전역
+      members: RAW.members, notifications: RAW.notifications, sessions: RAW.sessions, clubs: RAW.clubs, roster: RAW.roster, clubmatches: RAW.clubmatches, clubrecords: RAW.clubrecords, clubmeta: RAW.clubmeta,  // 전역
       trip: base.trip, notices: base.notices, schedule: base.schedule, packing: base.packing,
       polls: base.polls, expenses: base.expenses, photos: base.photos,
       participants: base.participants, paid: base.paid, received: base.received, rides: base.rides
@@ -458,15 +458,13 @@
     if (lastSig !== null && lastSig !== sig) { if (backing) backing = false; else { viewHist.push(lastSig); if (viewHist.length > 40) viewHist.shift(); } }
     lastSig = sig;
     var main = $("#app-main");
-    $("#app").classList.remove("lvl-top");
-    if (mode === "top") { $("#app").classList.add("lvl-top"); $("#gate").classList.add("hidden"); renderTopHeader(); renderTopNav(); setChrome(false); main.innerHTML = (state.screen === "me") ? viewMeTop() : viewClubs(); window.scrollTo(0, 0); return; }
+    var appEl = $("#app");
+    appEl.classList.remove("lvl-top", "club-themed", "acc-red", "acc-blue", "acc-green", "acc-purple", "acc-orange");
+    if (mode !== "top") { var tclub = currentClub() || {}; if (tclub.accent) appEl.classList.add("club-themed", "acc-" + tclub.accent); }
+    if (mode === "top") { appEl.classList.add("lvl-top"); $("#gate").classList.add("hidden"); renderTopHeader(); renderTopNav(); setChrome(false); main.innerHTML = (state.screen === "me") ? viewMeTop() : viewClubs(); window.scrollTo(0, 0); return; }
     if (mode === "hub") { $("#gate").classList.add("hidden"); renderHubHeader(currentClub()); $("#app-nav").innerHTML = ""; setChrome(true); main.innerHTML = viewHub(); window.scrollTo(0, 0); return; }
     if (mode === "info") { $("#gate").classList.add("hidden"); renderHeader(sess); $("#app-nav").innerHTML = ""; setChrome(true); main.innerHTML = viewSessionInfo(sess); window.scrollTo(0, 0); return; }
-    // 실시간 앱 세션 — 입장(로그인) 필요
-    var m = me && obj(DB.members)[me];
-    var inClub = me && sessionMemberIds().indexOf(me) >= 0;
-    if (!me || !m || !m.claimed || !inClub) { renderGate(); return; }
-    $("#gate").classList.add("hidden");
+    $("#gate").classList.add("hidden");  // 앱 로그인만 하면 세션 자유 진입(추가 인증 없음)
     if (state.tab === "vote" || state.tab === "settle") { state.alert = state.tab === "settle" ? "settle" : "vote"; state.tab = "alert"; }
     if (state.tab === "prep") state.tab = "my";
     setChrome(false);
@@ -722,7 +720,7 @@
     if (Store.mode === "demo") h += '<div class="demo-note">⚠️ <b>오프라인 임시 모드</b> — 실시간 연결이 안 돼, 지금 입력한 내용은 이 기기에만 저장되고 다른 멤버에겐 안 보여요. <button class="link" data-action="reload-app">새로고침</button> 후 다시 시도해 주세요.</div>';
     h += '<div class="hub-head"><h1>' + esc(club.name || "세션") + '</h1><p class="hub-sub">' + esc(club.desc || sportLabel(club.sport)) + '</p></div>';
     var ranking = clubHasRanking(club);
-    var tabs = [["schedule", "일정"], ["members", "멤버"]]; if (ranking) tabs.push(["ranking", "순위"]);
+    var tabs = [["schedule", "일정"]]; if (ranking) tabs.push(["ranking", "순위"]); tabs.push(["members", "멤버"]);
     var cur = state.hubTab || "schedule"; if (cur === "ranking" && !ranking) cur = "schedule";
     h += '<div class="hub-subnav">' + tabs.map(function (t) { return '<button class="hsub' + (cur === t[0] ? " on" : "") + '" data-action="hub-tab" data-tab="' + t[0] + '">' + t[1] + "</button>"; }).join("") + "</div>";
     if (cur === "members") h += hubMembers(club);
@@ -736,17 +734,31 @@
     if (isMeAdmin()) h += '<button class="card sess-add" data-action="add-session">' + icon("plus", 24) + "<span>세션 추가하기</span></button>";
     h += "</div>";
     if (!list.length && !isMeAdmin()) h += '<div class="empty-msg">아직 등록된 일정이 없어요.</div>';
-    if (isMeAdmin() && club._user) h += '<div class="card" style="margin-top:12px"><h2 class="sec" style="margin:0 0 12px">동호회 관리</h2><button class="btn-line btn-block" data-action="edit-club" data-id="' + esc(club.id) + '">동호회 정보 수정</button><button class="link-danger" data-action="del-club" data-id="' + esc(club.id) + '" style="display:block;width:100%;text-align:center;margin-top:12px">동호회 삭제</button></div>';
+    if (canManage(me)) h += '<div class="card" style="margin-top:12px"><h2 class="sec" style="margin:0 0 12px">동호회 관리</h2><button class="btn-line btn-block" data-action="edit-club" data-id="' + esc(club.id) + '">동호회 정보 수정</button>' + (club._user ? '<button class="link-danger" data-action="del-club" data-id="' + esc(club.id) + '" style="display:block;width:100%;text-align:center;margin-top:12px">동호회 삭제</button>' : '') + '</div>';
     return h;
   }
   function hubMembers(club) {
     var roster = clubRoster(club.id), bill = clubHasRanking(club), stats = {};
     if (bill) billiardsStats(club.id).forEach(function (a) { stats[a.id] = a; });
-    var h = '<div class="mem-list-club">';
+    var canMng = canManage(me), meMgr = isManager(me);
+    var h = "";
+    if (canMng) h += '<p class="hint" style="margin-bottom:10px">멤버 권한 관리 — <b>운영진 지정</b>·<b>크루원 삭제</b>·<b>입장 해제</b>. 운영진 해제는 관리자만.</p>';
+    h += '<div class="mem-list-club">';
     roster.forEach(function (r) {
-      var dm = obj(DB.members)[r.id] || {};
+      var dm = obj(DB.members)[r.id] || {}, self = (r.id === me), tr = roleOf(r.id), acts = "";
       var sub = (bill && stats[r.id] && stats[r.id].games) ? ("에버리지 " + fmtAvg(stats[r.id].avg) + " · " + stats[r.id].games + "전") : (dm.claimed ? "입장함" : "미입장");
-      h += '<div class="mem-row">' + avatar(r.id, 32) + '<div><div class="mr-name">' + esc(r.name) + " " + roleTag(r.id) + '</div><div class="mr-sub">' + esc(sub) + '</div></div></div>';
+      if (canMng && !self) {
+        if (tr === "manager") { acts = ""; }
+        else if (tr === "staff") {
+          if (meMgr) acts += '<button class="link" data-action="set-role" data-id="' + r.id + '" data-role="crew">운영진 해제</button>';
+          if (meMgr && dm.claimed) acts += '<button class="link-danger" data-action="release-claim" data-id="' + r.id + '">입장 해제</button>';
+        } else {
+          acts += '<button class="link" data-action="set-role" data-id="' + r.id + '" data-role="staff">운영진 지정</button>';
+          if (dm.claimed) acts += '<button class="link-danger" data-action="release-claim" data-id="' + r.id + '">입장 해제</button>';
+          acts += '<button class="link-danger" data-action="del-member" data-id="' + r.id + '">삭제</button>';
+        }
+      }
+      h += '<div class="mem-row">' + avatar(r.id, 32) + '<div style="flex:1;min-width:0"><div class="mr-name">' + esc(r.name) + " " + roleTag(r.id) + (self ? ' <span class="rbadge crew">나</span>' : "") + '</div><div class="mr-sub">' + esc(sub) + '</div></div>' + (acts ? '<div class="mr-act">' + acts + '</div>' : "") + '</div>';
     });
     h += "</div>";
     h += '<div class="hint" style="margin-top:12px">멤버 ' + roster.length + '명 · 게이트의 "직접 추가"로 누구나 합류할 수 있어요.</div>';
@@ -1509,28 +1521,6 @@
       '<label>화면 모드</label><div class="seg">' + [["system", "시스템"], ["light", "라이트"], ["dark", "다크"]].map(function (o) { return '<button class="seg-b' + ((localStorage.getItem("srk_theme") || "system") === o[0] ? " on" : "") + '" data-action="set-theme" data-theme="' + o[0] + '">' + o[1] + "</button>"; }).join("") + "</div>" +
       '<label>소속 동호회</label><div class="pf-clubs">' + myClubsRolesHtml() + '</div>' +
       '<div class="modal-foot"><button class="btn-line" data-action="close-modal">닫기</button><button class="btn-pri" data-action="save-profile">저장</button></div>';
-    if (canManage(me) && state.clubId) {
-      var meMgr = isManager(me);
-      h += '<h2 style="margin-top:24px;font-size:16px">멤버·권한 관리</h2>' +
-        '<p class="pf-note" style="margin:0 0 8px">관리자·운영진은 <b>운영진 지정</b>·<b>크루원 삭제</b> 가능. 운영진 해제는 관리자만.</p>' +
-        '<div class="card" style="margin:0">';
-      clubRoster().forEach(function (r) {
-        var dm = obj(DB.members)[r.id] || {}, tr = roleOf(r.id), self = (r.id === me), acts = "";
-        if (!self) {
-          if (tr === "manager") { acts = ""; }
-          else if (tr === "staff") {
-            if (meMgr) acts += '<button class="link" data-action="set-role" data-id="' + r.id + '" data-role="crew">운영진 해제</button>';
-            if (meMgr && dm.claimed) acts += '<button class="link-danger" data-action="release-claim" data-id="' + r.id + '">입장 해제</button>';
-          } else { // crew
-            acts += '<button class="link" data-action="set-role" data-id="' + r.id + '" data-role="staff">운영진 지정</button>';
-            if (dm.claimed) acts += '<button class="link-danger" data-action="release-claim" data-id="' + r.id + '">입장 해제</button>';
-            acts += '<button class="link-danger" data-action="del-member" data-id="' + r.id + '">삭제</button>';
-          }
-        }
-        h += '<div class="mem-row">' + avatar(r.id, 28) + '<div><div class="mr-name">' + esc(r.name) + " " + roleBadge(r.id) + (self ? ' <span class="rbadge crew">나</span>' : "") + '</div><div class="mr-sub">' + (dm.claimed ? "입장함 · " + (dm.hasCar ? "자차" : "탑승") + " · " + esc(normStation(dm.station) ? normStation(dm.station) + "역" : "역미정") : "미입장") + '</div></div><div class="mr-act">' + acts + "</div></div>";
-      });
-      h += "</div>";
-    }
     h += '<button class="btn-line btn-block logout-btn" data-action="switch-me" style="margin-top:16px">' + icon("logout", 18) + " 로그아웃</button>";
     openModal(h);
   }
@@ -1615,20 +1605,20 @@
       if (nrole === "staff") { if (cur !== "crew") return; }                 // 크루원 → 운영진 (관리자·운영진 모두)
       else if (nrole === "crew") { if (!isManager(me) || cur !== "staff") return; } // 운영진 → 크루원 (관리자만)
       else return;
-      Store.update("members/" + aid, { role: nrole }); formProfile(); return;
+      Store.update("members/" + aid, { role: nrole }); render(); return;
     }
     if (a === "del-member") {
       if (!canManage(me)) return;
       var did = t.getAttribute("data-id"); if (did === me) return;
       if (roleOf(did) !== "crew") { alert("크루원만 삭제할 수 있어요. (운영진은 먼저 해제하세요)"); return; }
-      if (confirm(memberName(did) + "님을 명단에서 삭제할까요?\n입장·프로필 기록이 사라지고 명단에서 빠집니다.")) { Store.remove("members/" + did); formProfile(); }
+      if (confirm(memberName(did) + "님을 명단에서 삭제할까요?\n입장·프로필 기록이 사라지고 명단에서 빠집니다.")) { Store.remove("members/" + did); render(); }
       return;
     }
     if (a === "release-claim") {
       if (!canManage(me)) return;
       var rcid = t.getAttribute("data-id"), rcr = roleOf(rcid);
       if (rcr === "manager" || (rcr === "staff" && !isManager(me))) return; // 관리자 보호, 운영진은 관리자만 초기화
-      if (confirm(memberName(rcid) + "님의 인증번호를 초기화할까요?\n출발지·자차·카풀 배정은 그대로 유지되고, 다시 인증번호를 정해 입장할 수 있어요.")) { Store.update("members/" + rcid, { claimed: false, pin: null }); formProfile(); }
+      if (confirm(memberName(rcid) + "님의 인증번호를 초기화할까요?\n출발지·자차·카풀 배정은 그대로 유지되고, 다시 인증번호를 정해 입장할 수 있어요.")) { Store.update("members/" + rcid, { claimed: false, pin: null }); render(); }
       return;
     }
 
@@ -1666,6 +1656,7 @@
       var cname = clampStr(($("#f-cname") || {}).value, 40); if (!cname) { alert("동호회 이름을 입력해주세요."); return; }
       var cdata = { name: cname, sport: ($("#f-csport") || {}).value || "general", emoji: ($("#f-cemoji") || {}).value || "🏅", accent: ($("#f-saccent") || {}).value || "red", desc: clampStr(($("#f-cdesc") || {}).value, 60) };
       if (ceditId && ceditId.indexOf("dbc:") === 0) { Store.update("clubs/" + ceditId.slice(4), cdata); closeModal(); render(); return; }
+      if (ceditId) { Store.set("clubmeta/" + ceditId, cdata); closeModal(); render(); return; }  // 내장 동호회 정보 수정
       cdata.by = me || null; cdata.ts = Date.now();
       var ckey = Store.push("clubs", cdata);
       if (ckey) { state.clubId = "dbc:" + ckey; state.screen = "hub"; }

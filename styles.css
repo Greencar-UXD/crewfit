@@ -814,3 +814,5 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .pf-clubs { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
 .pf-club-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); }
 .pf-club-name { font-weight: 700; font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 동호회별 테마 — 해당 동호회 색(--acc)을 글로벌 액센트로 스코프 */
+#app.club-themed { --accent: var(--acc); --accent-hover: var(--acc2); --pri: var(--acc); --pri-d: var(--acc2); --focus-ring: var(--acc); --accent-soft: color-mix(in srgb, var(--acc) 14%, transparent); }
