@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="크루핏">
   <defs>
     <linearGradient id="cf" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#f0473d"/>
-      <stop offset="1" stop-color="#d62318"/>
+      <stop offset="0" stop-color="#4368ff"/>
+      <stop offset="1" stop-color="#2447e0"/>
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="116" fill="url(#cf)"/>

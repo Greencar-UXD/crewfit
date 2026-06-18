@@ -13,12 +13,14 @@
   --gray-0:#ffffff; --gray-50:#f7f8f9; --gray-100:#eceef1; --gray-200:#dde0e5;
   --gray-300:#c5cad1; --gray-400:#9aa1ab; --gray-500:#6b727d; --gray-600:#4d535d;
   --gray-700:#383d45; --gray-800:#24282e; --gray-900:#14171b; --gray-950:#0c0e11;
-  /* ---- Accent ramp = SRK 레드 (코발트 램프 자리 대체) ---- */
+  /* ---- Red ramp = 개별 동호회(슈퍼리치키드) 액센트용 (.acc-red) ---- */
   --red-50:#fdecea; --red-100:#fbd9d6; --red-200:#f6ada6; --red-300:#f07d74;
   --red-400:#ec534a; --red-500:#e5302a; --red-600:#c5251f; --red-700:#a11d18;
   --red-800:#7d1813; --red-900:#5f120f;
-  /* 코발트 블루 — 보조 포인트(잠금 태그 등) */
-  --cobalt-500:#2d5bff; --cobalt-600:#2447e0;
+  /* ---- Cobalt ramp = 크루핏 시그니처 액센트 (디자인 시스템) ---- */
+  --cobalt-50:#eef2ff; --cobalt-100:#dde5ff; --cobalt-200:#bccbff; --cobalt-300:#93acff;
+  --cobalt-400:#5e84ff; --cobalt-500:#2d5bff; --cobalt-600:#2447e0; --cobalt-700:#1f3bb8;
+  --cobalt-800:#1c328f; --cobalt-900:#1a2d70;
   /* ---- Status ---- */
   --success-500:#0fa968; --success-600:#0c8a54; --success-50:#e2f6ed;
   --warning-500:#d9870b; --warning-600:#b56e08; --warning-50:#fbf2df;
@@ -26,13 +28,13 @@
 
   /* ===== Semantic — LIGHT ===== */
   --text-primary:var(--gray-900); --text-secondary:var(--gray-600); --text-tertiary:var(--gray-400); --text-inverse:var(--gray-0);
-  --text-link:var(--red-600); --text-accent:var(--red-600);
+  --text-link:var(--cobalt-600); --text-accent:var(--cobalt-600);
   --surface-page:var(--gray-50); --surface-card:var(--gray-0); --surface-sunken:var(--gray-100);
-  --surface-raised:var(--gray-0); --surface-inverse:var(--gray-900); --surface-accent-subtle:var(--red-50);
-  --border:var(--gray-200); --border-strong:var(--gray-300); --border-accent:var(--red-500);
-  --accent:var(--red-500); --accent-hover:var(--red-600); --on-accent:var(--gray-0); --focus-ring:var(--red-500);
+  --surface-raised:var(--gray-0); --surface-inverse:var(--gray-900); --surface-accent-subtle:var(--cobalt-50);
+  --border:var(--gray-200); --border-strong:var(--gray-300); --border-accent:var(--cobalt-500);
+  --accent:var(--cobalt-500); --accent-hover:var(--cobalt-600); --on-accent:var(--gray-0); --focus-ring:var(--cobalt-500);
   --action-primary-bg:var(--gray-900); --action-primary-bg-hover:var(--gray-800); --action-primary-fg:var(--gray-0);
-  --info-50:var(--red-50); --info-500:var(--red-500); --accent-soft:color-mix(in srgb, var(--accent) 12%, transparent);
+  --info-50:var(--cobalt-50); --info-500:var(--cobalt-500); --accent-soft:color-mix(in srgb, var(--accent) 12%, transparent);
 
   /* ---- Spacing · radius · shadow · motion (4px grid) ---- */
   --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px; --space-6:24px; --space-7:28px; --space-8:32px; --space-10:40px;
@@ -70,24 +72,24 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     --text-primary:#f3f4f6; --text-secondary:#9aa1ab; --text-tertiary:#6b727d; --text-inverse:var(--gray-900);
-    --text-link:#ff8077; --text-accent:#ff8077;
+    --text-link:#7d97ff; --text-accent:#7d97ff;
     --surface-page:#0d0f12; --surface-card:#16181d; --surface-sunken:#1d2025; --surface-raised:#1d2025;
-    --surface-inverse:var(--gray-50); --surface-accent-subtle:#3a1714;
-    --border:#262a30; --border-strong:#343943; --border-accent:#ff5a4d;
-    --accent:#ff5a4d; --accent-hover:#ff8077; --on-accent:#0d0f12; --focus-ring:#ff5a4d;
+    --surface-inverse:var(--gray-50); --surface-accent-subtle:#18203f;
+    --border:#262a30; --border-strong:#343943; --border-accent:#5b7cff;
+    --accent:#5b7cff; --accent-hover:#7d97ff; --on-accent:#0d0f12; --focus-ring:#5b7cff;
     --action-primary-bg:#f3f4f6; --action-primary-bg-hover:#ffffff; --action-primary-fg:#0d0f12;
-    --info-50:#3a1714; --success-50:#0e2d20; --warning-50:#2e2410; --danger-50:#371613;
+    --info-50:#18203f; --success-50:#0e2d20; --warning-50:#2e2410; --danger-50:#371613;
   }
 }
 :root[data-theme="dark"] {
   --text-primary:#f3f4f6; --text-secondary:#9aa1ab; --text-tertiary:#6b727d; --text-inverse:var(--gray-900);
-  --text-link:#ff8077; --text-accent:#ff8077;
+  --text-link:#7d97ff; --text-accent:#7d97ff;
   --surface-page:#0d0f12; --surface-card:#16181d; --surface-sunken:#1d2025; --surface-raised:#1d2025;
-  --surface-inverse:var(--gray-50); --surface-accent-subtle:#3a1714;
-  --border:#262a30; --border-strong:#343943; --border-accent:#ff5a4d;
-  --accent:#ff5a4d; --accent-hover:#ff8077; --on-accent:#0d0f12; --focus-ring:#ff5a4d;
+  --surface-inverse:var(--gray-50); --surface-accent-subtle:#18203f;
+  --border:#262a30; --border-strong:#343943; --border-accent:#5b7cff;
+  --accent:#5b7cff; --accent-hover:#7d97ff; --on-accent:#0d0f12; --focus-ring:#5b7cff;
   --action-primary-bg:#f3f4f6; --action-primary-bg-hover:#ffffff; --action-primary-fg:#0d0f12;
-  --info-50:#3a1714; --success-50:#0e2d20; --warning-50:#2e2410; --danger-50:#371613;
+  --info-50:#18203f; --success-50:#0e2d20; --warning-50:#2e2410; --danger-50:#371613;
 }
 /* data-theme="light"는 :root 기본(라이트) 사용 */
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -789,7 +791,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .mt-3 label { font-size: 12px; margin-bottom: 4px; }
 .mt-3 input { width: 100%; }
 /* 동호회 카드: 내 자격 뱃지 */
-.sc-tag.role-mgr { color: var(--accent, var(--pri)); background: var(--accent-soft, rgba(229,48,42,.12)); }
+.sc-tag.role-mgr { color: var(--accent, var(--pri)); background: var(--accent-soft, rgba(45,91,255,.12)); }
 .sc-tag.role-admin { color: var(--text-primary, var(--ink)); background: var(--surface-sunken, rgba(0,0,0,.05)); }
 .sc-tag.role-crew { color: var(--text-secondary, var(--muted)); background: var(--surface-sunken, rgba(0,0,0,.05)); }
 .sc-tag.role-guest { color: var(--text-secondary, var(--muted)); background: transparent; border: 1px dashed var(--line); }

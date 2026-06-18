@@ -564,7 +564,7 @@
   }
 
   /* ---------- 인트로 (이름 → 출발역 → 자차) ---------- */
-  var LOGO_C = '<svg viewBox="0 0 512 512" width="76" height="76" aria-hidden="true"><defs><linearGradient id="lgc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f0473d"/><stop offset="1" stop-color="#d62318"/></linearGradient></defs><rect width="512" height="512" rx="116" fill="url(#lgc)"/><path d="M361 332 A130 130 0 1 1 361 180" fill="none" stroke="#fff" stroke-width="64" stroke-linecap="round"/></svg>';
+  var LOGO_C = '<svg viewBox="0 0 512 512" width="76" height="76" aria-hidden="true"><defs><linearGradient id="lgc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4368ff"/><stop offset="1" stop-color="#2447e0"/></linearGradient></defs><rect width="512" height="512" rx="116" fill="url(#lgc)"/><path d="M361 332 A130 130 0 1 1 361 180" fill="none" stroke="#fff" stroke-width="64" stroke-linecap="round"/></svg>';
   function resolveMemberByName(name) {
     name = String(name || "").trim(); if (!name) return null;
     var cand = [];
