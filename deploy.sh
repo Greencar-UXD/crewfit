@@ -2,13 +2,13 @@
 # ============================================================
 # 슈퍼리치키드 하계 MT — GitHub Pages 배포 스크립트
 # 최초 배포와 이후 갱신 모두 이 스크립트 하나로 처리한다.
-#   사용법: ./deploy.sh [저장소명]   (기본: srk-mt)
+#   사용법: ./deploy.sh [저장소명]   (기본: crewfit)
 #   선행 조건: gh CLI 로그인 (gh auth login --web)
 # ============================================================
 set -e
 cd "$(dirname "$0")"
 
-REPO_NAME="${1:-srk-mt}"
+REPO_NAME="${1:-crewfit}"
 
 # gh CLI 탐색 (PATH → ~/.local/bin 순)
 if command -v gh >/dev/null 2>&1; then GH="gh"
