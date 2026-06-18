@@ -55,7 +55,7 @@ window.SRK_CONFIG = {
      accent: red / blue / green / purple / orange (카드·배너 색) */
   clubs: [
     { id: "srk", name: "슈퍼리치키드", sport: "climbing", emoji: "🧗", accent: "red", desc: "클라이밍 크루 — MT·원정·정기 모임" },
-    { id: "jrd", name: "지리아드", sport: "billiards", emoji: "🎱", accent: "blue", desc: "그린카 당구 동호회",
+    { id: "jrd", name: "지리아드", sport: "billiards", emoji: "🎱", accent: "blue", desc: "그린카 당구 크루",
       roster: [
         { id: "m17", name: "강민관", role: "manager" },
         { id: "jrd01", name: "정종욱" }, { id: "jrd02", name: "조민호" }, { id: "jrd03", name: "진익영" },
