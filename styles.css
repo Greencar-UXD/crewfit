@@ -810,3 +810,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   #app.lvl-top .hub-wrap { max-width: none; }
   #app.lvl-top .sess-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
 }
+/* 프로필: 소속 동호회 + 권한 */
+.pf-clubs { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
+.pf-club-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); }
+.pf-club-name { font-weight: 700; font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -520,11 +520,21 @@
     h += '<div class="hub-head"><h1>마이</h1></div>';
     h += '<div class="card my-profile" data-action="open-profile"><div class="mp-top">' + avatar(me, 52) +
       '<div class="mp-info"><div class="mp-name">' + esc(memberName(me)) + " " + roleBadge(me) + '</div>' +
-      '<div class="mp-sub">' + (m.pin ? "인증번호 설정됨 · 다른 기기에서도 같은 번호로 로그인" : '<span class="warn">인증번호 미설정 — 눌러서 설정</span>') + '</div></div>' +
+      '<div class="mp-sub">' + (m.bio ? esc(m.bio) : (m.pin ? "눌러서 프로필 설정" : '<span class="warn">인증번호 미설정 — 눌러서 설정</span>')) + '</div></div>' +
       '<span class="mp-go">' + icon("edit", 18) + '</span></div></div>';
-    h += '<button class="btn-line btn-block" data-action="open-profile" style="margin-top:12px">프로필 · 설정</button>';
-    h += '<button class="btn-line btn-block logout-btn" data-action="switch-me" style="margin-top:10px">' + icon("logout", 18) + ' 로그아웃</button>';
+    h += '<p class="pf-note" style="text-align:center;margin-top:14px">프로필 카드를 눌러 설정 · 로그아웃</p>';
     return h + "</div>";
+  }
+  function myClubsRolesHtml() {
+    var clubs = myClubs();
+    if (!clubs.length) return '<div class="pf-note">아직 속한 동호회가 없어요.</div>';
+    return clubs.map(function (c) {
+      var r = clubRoster(c.id).filter(function (x) { return x.id === me; })[0];
+      var role = (r && r.role) || roleOf(me) || "crew";
+      var cls = role === "manager" ? "mgr" : role === "staff" ? "admin" : "crew";
+      var label = role === "manager" ? "관리자" : role === "staff" ? "운영진" : "멤버";
+      return '<div class="pf-club-row"><span class="pf-club-name">' + (c.emoji ? c.emoji + " " : "") + esc(c.name) + '</span><span class="rbadge ' + cls + '">' + label + '</span></div>';
+    }).join("");
   }
   function renderHubHeader(club) {
     club = club || {};
@@ -1493,12 +1503,13 @@
       : '<div class="pf-note">프로필 사진은 사진 기능(Cloudinary) 연결 후 변경할 수 있어요</div>';
     var h = '<h2>내 프로필</h2>' +
       '<div class="pf-photo">' + avatar(me, 72) + '<div class="pf-photo-act"><div class="pf-name">' + esc(memberName(me)) + " " + roleBadge(me) + "</div>" + photoBtns + "</div></div>" +
-      '<label>출발지 (지하철역)</label><input type="text" id="p-station" list="stationlist2" value="' + esc(m.station || "") + '" placeholder="예: 남영"><datalist id="stationlist2">' + dl + "</datalist>" +
-      '<label>자차 보유</label><div class="toggle2"><button id="p-car-no" class="' + (m.hasCar ? "" : "on") + '" data-action="pf-car" data-v="0">없음</button><button id="p-car-yes" class="' + (m.hasCar ? "on" : "") + '" data-action="pf-car" data-v="1">있음</button></div>' +
+      '<label>이름 (또는 닉네임)</label><input type="text" id="p-name" maxlength="20" value="' + esc(memberName(me)) + '" placeholder="이름 또는 닉네임">' +
+      '<label>한줄 소개</label><input type="text" id="p-bio" maxlength="60" value="' + esc(m.bio || "") + '" placeholder="나를 한 줄로 소개해보세요 (선택)">' +
       '<label>인증번호</label><div class="pf-pin">' + (m.pin ? "설정됨 " : '<b class="warn">미설정 — 다른 기기 입장하려면 설정하세요 </b>') + '<button class="btn-ghost sm" data-action="set-pin">' + (m.pin ? "변경" : "설정") + "</button></div>" +
       '<label>화면 모드</label><div class="seg">' + [["system", "시스템"], ["light", "라이트"], ["dark", "다크"]].map(function (o) { return '<button class="seg-b' + ((localStorage.getItem("srk_theme") || "system") === o[0] ? " on" : "") + '" data-action="set-theme" data-theme="' + o[0] + '">' + o[1] + "</button>"; }).join("") + "</div>" +
+      '<label>소속 동호회</label><div class="pf-clubs">' + myClubsRolesHtml() + '</div>' +
       '<div class="modal-foot"><button class="btn-line" data-action="close-modal">닫기</button><button class="btn-pri" data-action="save-profile">저장</button></div>';
-    if (canManage(me)) {
+    if (canManage(me) && state.clubId) {
       var meMgr = isManager(me);
       h += '<h2 style="margin-top:24px;font-size:16px">멤버·권한 관리</h2>' +
         '<p class="pf-note" style="margin:0 0 8px">관리자·운영진은 <b>운영진 지정</b>·<b>크루원 삭제</b> 가능. 운영진 해제는 관리자만.</p>' +
@@ -1590,7 +1601,7 @@
     if (a === "pick-avatar") { var af = $("#avatar-file"); if (af) af.click(); return; }
     if (a === "remove-avatar") { Store.remove("members/" + me + "/photoUrl"); if (obj(DB.members)[me]) delete DB.members[me].photoUrl; formProfile(); return; }
     if (a === "pf-car") { var v = t.getAttribute("data-v") === "1"; $("#p-car-yes").classList.toggle("on", v); $("#p-car-no").classList.toggle("on", !v); return; }
-    if (a === "save-profile") { var pon = $("#p-car-yes").classList.contains("on"); var upd = { station: cleanStation($("#p-station").value), hasCar: pon }; Store.update("members/" + me, upd); if (pon) Store.set(rideWritePath(me), null); closeModal(); return; }
+    if (a === "save-profile") { var pnm = clampStr(($("#p-name") || {}).value, 20), pbio = clampStr(($("#p-bio") || {}).value, 60); var upd = { bio: pbio }; if (pnm) upd.name = pnm; Store.update("members/" + me, upd); if (obj(DB.members)[me]) Object.assign(DB.members[me], upd); closeModal(); render(); return; }
     if (a === "switch-me") {
       if (confirm("이 기기에서 로그아웃할까요?\n(이름·인증번호는 그대로 유지되고, 언제든 인증번호로 다시 입장할 수 있어요)")) {
         me = null; localStorage.removeItem("srk_me"); intro.step = "name"; intro.pick = null; intro.newName = null; state.screen = "clubs"; state.clubId = null; closeModal(); render();
