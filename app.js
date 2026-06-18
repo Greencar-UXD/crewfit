@@ -780,10 +780,9 @@
   function viewClubs() {
     var list = myClubs(), h = "";
     if (Store.mode === "demo") h += '<div class="demo-note">⚠️ <b>오프라인 임시 모드</b> — 실시간 연결이 안 돼, 입력 내용이 이 기기에만 저장돼요. <button class="link" data-action="reload-app">새로고침</button> 후 다시 시도해 주세요.</div>';
-    h += '<div class="hub-head"><h1>동호회</h1></div>';
+    h += '<div class="hub-head hub-head-row"><h1>동호회</h1>' + (isMeAdmin() ? '<button class="btn-pri" data-action="create-club">+ 동호회 개설</button>' : "") + '</div>';
     h += '<div class="list-grid sess-grid">';
     list.forEach(function (c) { h += clubCard(c); });
-    if (isMeAdmin()) h += '<button class="card sess-add" data-action="create-club">' + icon("plus", 24) + "<span>동호회 개설</span></button>";
     h += "</div>";
     if (!list.length && !isMeAdmin()) h += '<div class="empty-msg">아직 속한 동호회가 없어요.<br>동호회 운영진에게 초대를 요청하세요.</div>';
     return '<div class="hub-wrap">' + h + "</div>";
@@ -798,7 +797,7 @@
       '<div class="sc-top"><span class="sc-emoji">' + (c.emoji || "🏅") + '</span><span class="sc-badge now">' + esc(sportLabel(c.sport)) + "</span></div>" +
       '<div class="sc-title">' + esc(c.name) + "</div>" +
       (c.desc ? '<div class="sc-subtitle">' + esc(c.desc) + "</div>" : "") +
-      '<div class="sc-foot"><span class="sc-tag role-' + cls + '">' + label + '</span><span class="sc-go">세션 ' + n + "개 ›</span></div>" +
+      '<div class="sc-foot"><span class="sc-tag role-' + cls + '">' + label + '</span><span class="sc-go">' + (n > 0 ? "일정 " + n + "개" : "둘러보기") + " ›</span></div>" +
       "</div>";
   }
   function viewHub() {
