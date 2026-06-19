@@ -1378,6 +1378,14 @@
       '<div>' + icon("home", 14) + " " + esc(t.lodging || "") + (t.airbnbUrl ? ' · <a href="' + esc(t.airbnbUrl) + '" target="_blank" rel="noopener">숙소 보기</a>' : "") + "</div>" +
       (t.note ? '<div class="hero-note">' + esc(t.note) + "</div>" : "") + "</div></div>";
 
+    // 이 일정 공지/안내 — 일정 정보는 일정 안에서 (v37서 빠졌던 표시 복구, 세션 스코프)
+    var _nl = bySort(entries(DB.notices), function (kv) { return -((kv[1].pinned ? 1e15 : 0) + (kv[1].ts || 0)); });
+    if (_nl.length || canManage(me)) {
+      h += '<div style="display:flex;align-items:center;justify-content:space-between;margin:18px 0 8px"><h2 class="sec" style="margin:0">공지</h2>' + (canManage(me) ? '<button class="btn-ghost sm" data-action="new-notice" style="margin:0">' + icon("plus", 14) + ' 공지\</button>' : "") + "</div>";
+      if (!_nl.length) h += '<div class="empty-msg">아직 공지가 없어요. 이 일정 관련 안내를 여기에 올려요.</div>';
+      else { h += '<div class="list-grid">'; _nl.forEach(function (kv) { var n = kv[1], _ce = (n.by === me || canManage(me)); h += '<div class="card notice' + (n.pinned ? " pin" : "") + '">' + (n.pinned ? '<span class="pin-tag">' + icon("pin", 13) + ' 고정</span>' : "") + '<div class="notice-text">' + linkify(esc(n.text)) + "</div>" + (n.link ? '<a class="tl-link" href="' + esc(n.link) + '" target="_blank" rel="noopener">' + icon("link", 13) + " 링크 바로가기</a>" : "") + '<div class="notice-by">' + (n.by ? chip(n.by) : "") + '<span class="ago">' + timeago(n.ts) + "</span>" + (_ce ? '<span class="notice-acts"><button class="link" data-action="edit-notice" data-id="' + kv[0] + '">' + icon("edit", 14) + " 수정</button><button class=\"cmt-del\" data-action=\"del-notice\" data-id=\"" + kv[0] + '">×</button></span>' : "") + "</div></div>"; }); h += "</div>"; }
+    }
+
     h += '<div class="stat-row">' +
       '<button class="stat" data-action="tab" data-tab="alert"><div class="stat-n">' + entries(DB.schedule).length + '</div><div class="stat-l">일정</div></button>' +
       (sessHas("settle")
