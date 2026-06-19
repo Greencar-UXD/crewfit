@@ -505,6 +505,9 @@ h1, h2 { margin: 0; }
 .tl-edit { color: var(--muted); padding: 8px; display: flex; opacity: .6; }
 .notice-acts { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
 .notice-acts .link { display: inline-flex; align-items: center; gap: 0px; }
+.react-btn { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; min-height: 0; cursor: pointer; }
+.react-btn.on { color: var(--pri); border-color: color-mix(in srgb, var(--pri) 40%, transparent); background: color-mix(in srgb, var(--pri) 10%, transparent); }
+@media (hover: hover) { .react-btn:hover { border-color: color-mix(in srgb, var(--pri) 40%, transparent); } }
 .notice .notice-text { font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
 .notice.pin { border: 1px solid color-mix(in srgb, var(--pri) 35%, transparent); }
 .pin-tag { display: inline-block; font-size: 10px; font-weight: 800; color: var(--pri); margin-bottom: 8px; }
