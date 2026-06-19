@@ -816,7 +816,7 @@
     if (it.kind === "notice") { ic = "megaphone"; lab = "새 공지"; body = it.text; tab = "board"; bt = "notice"; }
     else if (it.kind === "poll") { ic = "ballot"; lab = it.closed ? "투표 마감" : "새 투표"; body = it.q; tab = "board"; bt = "poll"; }
     else if (it.kind === "dues") { ic = "wallet"; lab = "회비 등록"; body = it.title + " · 1인 " + won(it.amount); tab = "board"; bt = "dues"; }
-    else if (it.kind === "match") { var m = it.m; ic = "ballot"; lab = "대전 결과"; body = memberName(m.p1.id) + " " + (+m.p1.score || 0) + " : " + (+m.p2.score || 0) + " " + memberName(m.p2.id) + (m.winner ? " · " + icon("trophy", 13) + " " + memberName(m.winner) : ""); tab = "ranking"; bt = "notice"; }
+    else if (it.kind === "match") { var m = it.m; ic = "ballot"; lab = "대전 결과"; body = memberName(m.p1.id) + " " + (+m.p1.score || 0) + " : " + (+m.p2.score || 0) + " " + memberName(m.p2.id) + (m.winner ? " · " + memberName(m.winner) + " 승" : ""); tab = "ranking"; bt = "notice"; }
     else if (it.kind === "session") { ic = "calendar"; lab = "새 일정"; body = it.s.title + (it.s.startDate ? " · " + dateRangeKo(it.s.startDate, it.s.endDate) : ""); tab = "schedule"; bt = "notice"; }
     return '<div class="card feed-item' + (isNew ? " is-new" : "") + ' acc-' + esc(c.accent || "red") + '" data-action="go-club-tab" data-id="' + esc(c.id) + '" data-tab="' + tab + '" data-bt="' + bt + '">' +
       '<div class="fi-head"><span class="fi-club">' + (c.emoji ? esc(c.emoji) + " " : "") + esc(c.name) + '</span>' + (isNew ? '<span class="fi-new">NEW</span>' : "") + '<span class="fi-ago">' + timeago(it.ts) + '</span></div>' +
