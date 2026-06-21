@@ -1387,6 +1387,13 @@
       else { h += '<div class="list-grid">'; _nl.forEach(function (kv) { var n = kv[1], _ce = (n.by === me || canManage(me)); h += '<div class="card notice' + (n.pinned ? " pin" : "") + '">' + (n.pinned ? '<span class="pin-tag">' + icon("pin", 13) + ' 고정</span>' : "") + '<div class="notice-text">' + linkify(esc(n.text)) + "</div>" + (n.link ? '<a class="tl-link" href="' + esc(n.link) + '" target="_blank" rel="noopener">' + icon("link", 13) + " 링크 바로가기</a>" : "") + '<div class="notice-by">' + (n.by ? chip(n.by) : "") + '<span class="ago">' + timeago(n.ts) + "</span>" + (_ce ? '<span class="notice-acts"><button class="link" data-action="edit-notice" data-id="' + kv[0] + '">' + icon("edit", 14) + " 수정</button><button class=\"cmt-del\" data-action=\"del-notice\" data-id=\"" + kv[0] + '">×</button></span>' : "") + "</div></div>"; }); h += "</div>"; }
     }
 
+    // 결정(투표) — 숙소·코스 등 함께 정하기 (옛 세션 투표 복구, 진행 중인 것만 노출)
+    if (openPolls.length || isMeAdmin()) {
+      h += '<div style="display:flex;align-items:center;justify-content:space-between;margin:18px 0 8px"><h2 class="sec" style="margin:0">결정</h2>' + (isMeAdmin() ? '<button class="btn-ghost sm" data-action="new-poll" style="margin:0">' + icon("plus", 14) + ' 투표</button>' : "") + "</div>";
+      if (!openPolls.length) h += '<div class="empty-msg">진행 중인 투표가 없어요. 숙소·코스 같은 결정을 투표로 함께 정해요.</div>';
+      else { h += '<div class="list-grid">'; openPolls.forEach(function (kv) { h += pollMiniCard(kv[0], kv[1]); }); h += "</div>"; }
+    }
+
     h += '<div class="stat-row">' +
       '<button class="stat" data-action="tab" data-tab="alert"><div class="stat-n">' + entries(DB.schedule).length + '</div><div class="stat-l">일정</div></button>' +
       (sessHas("settle")
@@ -1656,16 +1663,31 @@
 
   /* ---------- 알림 (공지·일정·투표·정산 통합) ---------- */
   function viewAlert() {
-    // 공지·투표는 크루 게시판으로 단일화. 일정의 이 탭은 일정(타임라인) 전용.
+    // 세션 투표(숙소·코스 결정) 복구 — 홈 '결정' 섹션에서 진입(open-poll → alert/vote).
+    if (state.alert === "vote") return state.pollId ? viewPollDetail(state.pollId) : viewVote();
     return prepSchedule();
   }
+  // ⑤ 변경 마감일 경과 여부(소프트 경고용)
+  function rsvpLocked(s) { return !!(s && s.lockDate && ddayOf(s.lockDate) < 0); }
   function rsvpRow(id, s) {
     var rv = s.rsvp || {}, ids = sessionMemberIds(), ci = 0, cm = 0, co = 0;
     ids.forEach(function (mid) { var v = rv[mid]; if (v === "in") ci++; else if (v === "maybe") cm++; else if (v === "out") co++; });
-    var noResp = Math.max(0, ids.length - ci - cm - co), mine = rv[me] || "";
-    function c(st, lab) { return '<button class="rsvp-chip ' + st + (mine === st ? " on" : "") + '" data-action="rsvp" data-id="' + id + '" data-st="' + st + '">' + lab + "</button>"; }
+    var noResp = Math.max(0, ids.length - ci - cm - co), mine = rv[me] || "", locked = rsvpLocked(s);
+    function c(st, lab) { return '<button class="rsvp-chip ' + st + (mine === st ? " on" : "") + (locked ? " locked" : "") + '" data-action="rsvp" data-id="' + id + '" data-st="' + st + '">' + lab + "</button>"; }
     var tally = "참석 " + ci + (cm ? " · 미정 " + cm : "") + (co ? " · 불참 " + co : "") + (noResp ? " · 미응답 " + noResp : "");
-    return '<div class="rsvp-row">' + c("in", "참석") + c("maybe", "미정") + c("out", "불참") + '<span class="rsvp-tally">' + tally + "</span></div>";
+    var h = '<div class="rsvp-row">' + c("in", "참석") + c("maybe", "미정") + c("out", "불참") + '<span class="rsvp-tally">' + tally + "</span></div>";
+    // ④ 예약 정원 대조 경고 — 참석 인원 vs 예약 정원
+    var meta = "";
+    if (s.cap > 0) {
+      var diff = ci - s.cap, capCls = diff === 0 ? "ok" : diff > 0 ? "over" : "under";
+      var capTxt = s.cap + "명분 예약 · 참석 " + ci + " — " + (diff === 0 ? "정원 딱 맞음" : diff > 0 ? diff + "명 초과" : Math.abs(diff) + "자리 남음");
+      meta += '<span class="cap-badge ' + capCls + '">' + icon(diff > 0 ? "alert" : "users", 12) + " " + capTxt + "</span>";
+    }
+    // ⑤ 변경 마감일 + 취소·예약금 정책
+    if (s.lockDate) meta += '<span class="lock-badge' + (locked ? " past" : "") + '">' + icon("calendar", 12) + " 변경 " + (locked ? "마감됨" : "마감 " + ddayLabelOf(s.lockDate)) + "</span>";
+    if (s.cancelNote) meta += '<span class="cancel-note">' + icon("alert", 12) + " " + esc(s.cancelNote) + "</span>";
+    if (meta) h += '<div class="rsvp-meta">' + meta + "</div>";
+    return h;
   }
   function prepSchedule() {
     var items = entries(DB.schedule).slice().sort(function (a, b) { var ka = (a[1].day || "") + (a[1].time || ""), kb = (b[1].day || "") + (b[1].time || ""); return ka < kb ? -1 : ka > kb ? 1 : 0; });
@@ -1815,6 +1837,11 @@
       '<label>장소 (선택)</label><input id="f-place" placeholder="예: 카루소" value="' + (s && s.place ? esc(s.place) : "") + '">' +
       '<label>링크 (선택)</label><input id="f-link" type="url" inputmode="url" placeholder="https://naver.me/…" value="' + (s && s.link ? esc(s.link) : "") + '">' +
       '<label>내용 (선택)</label><textarea id="f-desc2" rows="2" placeholder="메모">' + (s && s.desc ? esc(s.desc) : "") + "</textarea>" +
+      '<div class="sched-resv"><div class="sr-head">' + icon("calendar", 13) + ' 예약 관리 (선택)</div>' +
+      '<div class="row2"><div><label>예약 정원</label><input id="f-cap" type="number" min="0" inputmode="numeric" placeholder="예: 16" value="' + (s && s.cap ? s.cap : "") + '"></div>' +
+      '<div><label>변경 마감일</label><input id="f-lock" type="date" value="' + (s && s.lockDate ? esc(s.lockDate) : "") + '"></div></div>' +
+      '<label>취소·예약금 정책</label><input id="f-cancel" placeholder="예: 마감 후 불참 시 예약금 1만원 환불 불가" value="' + (s && s.cancelNote ? esc(s.cancelNote) : "") + '" maxlength="120">' +
+      '<p class="pf-note" style="margin:4px 0 0">정원을 넣으면 참석 인원과 자동 대조해요. 마감일이 지나면 참석 변경 시 정책 안내가 떠요.</p></div>' +
       '<div class="modal-foot">' + (editId ? '<button class="link-danger" data-action="del-schedule" data-id="' + editId + '">삭제</button>' : "") +
       '<button class="btn-line" data-action="close-modal">취소</button><button class="btn-pri" data-action="save-schedule" data-edit="' + (editId || "") + '">저장</button></div>';
     openModal(h);
@@ -2161,7 +2188,18 @@
     if (a === "del-notice") { var nid = t.getAttribute("data-id"); var nn = obj(DB.notices)[nid]; if (!nn || !(isMeAdmin() || nn.by === me)) return; if (confirm("공지를 삭제할까요?")) { Store.remove("notices/" + nid); closeModal(); } return; }
     if (a === "new-schedule") { if (isMeAdmin()) formSchedule(null); return; }
     if (a === "edit-schedule") { if (isMeAdmin()) formSchedule(t.getAttribute("data-id")); return; }
-    if (a === "rsvp") { var rid = t.getAttribute("data-id"), rst = t.getAttribute("data-st"); var rs = (obj(DB.schedule)[rid] || {}).rsvp || {}; if (rs[me] === rst) Store.remove("schedule/" + rid + "/rsvp/" + me); else Store.set("schedule/" + rid + "/rsvp/" + me, rst); return; }
+    if (a === "rsvp") {
+      var rid = t.getAttribute("data-id"), rst = t.getAttribute("data-st");
+      var sched = obj(DB.schedule)[rid] || {}, rs = sched.rsvp || {}, cur = rs[me] || "";
+      if (rsvpLocked(sched) && cur !== rst) {  // ⑤ 마감 후 변경: 취소·예약금 정책 안내 후 진행
+        var lm = "‘" + (sched.title || "이 일정") + "’ 변경 마감일(" + dateKo(sched.lockDate) + ")이 지났어요.";
+        if (sched.cancelNote) lm += "\n\n" + sched.cancelNote;
+        lm += "\n\n그래도 변경할까요?";
+        if (!confirm(lm)) return;
+      }
+      if (cur === rst) Store.remove("schedule/" + rid + "/rsvp/" + me); else Store.set("schedule/" + rid + "/rsvp/" + me, rst);
+      return;
+    }
     if (a === "set-mycar") { Store.set("members/" + me + "/hasCar", t.getAttribute("data-v") === "1"); return; }
     if (a === "nudge-rsvp") {
       if (!isMeAdmin()) return;
@@ -2264,9 +2302,13 @@
     if (!isMeAdmin()) return;
     var day = $("#f-day").value, time = $("#f-time").value, title = $("#f-title").value.trim();
     if (!day || !time || !title) { alert("날짜·시간·제목을 입력하세요"); return; }
-    var data = { day: day, time: time, title: clampStr(title, 100), place: clampStr($("#f-place").value, 60), link: clampStr($("#f-link").value, 300), desc: clampStr($("#f-desc2").value, 500), ts: (editId && obj(DB.schedule)[editId] ? obj(DB.schedule)[editId].ts : Date.now()) };
+    var capN = parseInt((($("#f-cap") || {}).value), 10);
+    var data = { day: day, time: time, title: clampStr(title, 100), place: clampStr($("#f-place").value, 60), link: clampStr($("#f-link").value, 300), desc: clampStr($("#f-desc2").value, 500),
+      cap: (capN > 0 ? capN : null), lockDate: ((($("#f-lock") || {}).value) || null), cancelNote: (clampStr((($("#f-cancel") || {}).value), 120) || null),
+      ts: (editId && obj(DB.schedule)[editId] ? obj(DB.schedule)[editId].ts : Date.now()) };
     armRetry(function () { formSchedule(editId); });
-    if (editId) Store.set("schedule/" + editId, data); else { Store.push("schedule", data); notifyCrew(memberName(me) + "님이 일정을 추가했어요: " + clampStr(title, 50), "schedule"); }
+    // 수정은 update — rsvp 등 하위 응답 보존(set은 노드 전체 교체라 RSVP 소실)
+    if (editId) Store.update("schedule/" + editId, data); else { Store.push("schedule", data); notifyCrew(memberName(me) + "님이 일정을 추가했어요: " + clampStr(title, 50), "schedule"); }
     closeModal();
   }
   function savePacking(editId) {
