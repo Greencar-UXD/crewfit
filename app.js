@@ -207,8 +207,8 @@
   function clubDues(cid) { cid = cid || state.clubId; var m = obj((obj(DB.clubdues) || {})[cid]); return Object.keys(m).map(function (k) { var x = Object.assign({}, m[k]); x._key = k; return x; }).sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); }); }
   function climbStats(cid) {
     var agg = {};
-    clubRecords(cid, "climb").forEach(function (r) { if (!r.member) return; var a = agg[r.member] || (agg[r.member] = { id: r.member, sends: 0, maxGrade: 0, ts: 0 }); a.sends++; if ((+r.grade || 0) > a.maxGrade) a.maxGrade = +r.grade || 0; if ((r.ts || 0) > a.ts) a.ts = r.ts || 0; });
-    return Object.keys(agg).map(function (id) { var a = agg[id]; a.name = memberName(id); return a; }).sort(function (x, y) { return y.maxGrade - x.maxGrade || y.sends - x.sends; });
+    clubRecords(cid, "climb").forEach(function (r) { if (!r.member) return; var a = agg[r.member] || (agg[r.member] = { id: r.member, sends: 0, maxGrade: 0, ts: 0, grades: [] }); a.sends++; var g = +r.grade || 0; a.grades.push(g); if (g > a.maxGrade) a.maxGrade = g; if ((r.ts || 0) > a.ts) a.ts = r.ts || 0; });
+    return Object.keys(agg).map(function (id) { var a = agg[id]; a.name = memberName(id); a.top = a.grades.slice().sort(function (x, y) { return y - x; }).slice(0, 10); a.score = a.top.reduce(function (s, g) { return s + g; }, 0); return a; }).sort(function (x, y) { return y.score - x.score || y.maxGrade - x.maxGrade || y.sends - x.sends; });
   }
   function runStats(cid) {
     var agg = {};
@@ -959,12 +959,12 @@
   function rankCanRec(cid) { return !!(me && (obj(DB.members)[me] || {}).claimed && clubRoster(cid).some(function (r) { return r.id === me; })); }
   function climbingRanking(club) {
     var cid = club.id, rows = climbStats(cid), canRec = rankCanRec(cid);
-    var h = '<div class="rank-head"><div><h2 class="sec" style="margin:0">암장 난이도 순위</h2><div class="hint" style="margin-top:2px">최고 완등 등급(V스케일·볼더링) 기준</div></div>' +
+    var h = '<div class="rank-head"><div><h2 class="sec" style="margin:0">클라이밍 순위</h2><div class="hint" style="margin-top:2px">가장 어려운 완등 10개의 V 합산 점수 · 볼더링</div></div>' +
       (canRec ? '<button class="btn-pri btn-sm" data-action="add-climb">완등 기록</button>' : "") + "</div>";
     if (!rows.length) { h += '<div class="empty-msg">아직 기록된 완등이 없어요.' + (canRec ? ' 위 <b>완등 기록</b>으로 첫 완등을 남겨보세요.' : ' 크루원으로 입장하면 완등을 기록할 수 있어요.') + "</div>"; }
     else {
       h += '<div class="rank-list">';
-      rows.forEach(function (a, i) { h += '<div class="rank-row"><span class="rk-no rk-' + (i < 3 ? (i + 1) : "n") + '">' + (i + 1) + "</span>" + avatar(a.id, 30) + '<div class="rk-name"><div>' + esc(a.name) + '</div><div class="rk-sub">완등 ' + a.sends + '개</div></div><div class="rk-avg"><div class="rk-avg-n">' + fmtGrade(a.maxGrade) + '</div><div class="rk-avg-l">최고 난이도</div></div></div>'; });
+      rows.forEach(function (a, i) { h += '<div class="rank-row"><span class="rk-no rk-' + (i < 3 ? (i + 1) : "n") + '">' + (i + 1) + "</span>" + avatar(a.id, 30) + '<div class="rk-name"><div>' + esc(a.name) + '</div><div class="rk-sub">완등 ' + a.sends + '개 · 최고 ' + fmtGrade(a.maxGrade) + '</div></div><div class="rk-avg"><div class="rk-avg-n">' + a.score + 'pt</div><div class="rk-avg-l">상위 10 점수</div></div></div>'; });
       h += "</div>";
     }
     var recs = clubRecords(cid, "climb");
