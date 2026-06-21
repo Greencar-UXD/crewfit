@@ -526,6 +526,9 @@ h1, h2 { margin: 0; }
 .sched-resv { border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-top: 12px; background: var(--surface); }
 .sched-resv .sr-head { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 8px; }
 .sched-resv label { margin-top: 8px; }
+.cp-me { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 2px 0 14px; }
+.cp-me-lab { font-size: 13px; font-weight: 700; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.cp-me-seg { display: flex; gap: 6px; }
 .notice .notice-text { font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
 .notice.pin { border: 1px solid color-mix(in srgb, var(--pri) 35%, transparent); }
 .pin-tag { display: inline-block; font-size: 10px; font-weight: 800; color: var(--pri); margin-bottom: 8px; }

@@ -1591,6 +1591,8 @@
       '<div class="st-box"><div class="st-n">' + claimedMembers().filter(function (id) { return !DB.members[id].hasCar; }).length + '<i>명</i></div><div class="st-l">탑승 인원</div></div>' +
       '<div class="st-box"><div class="st-n">' + unas.length + '<i>명</i></div><div class="st-l">차 미정</div></div></div>';
     h += '<div class="hint">같은 권역(예: 강남권·용산권)이거나 출발역이 같으면 <b>가까움</b>이 떠요. 안 떠도 직접 차를 고를 수 있어요.</div>';
+    var meCar = !!(obj(DB.members)[me] || {}).hasCar;
+    h += '<div class="cp-me"><span class="cp-me-lab">' + icon("car", 15) + ' 내 이동 수단\</span><div class="cp-me-seg"><button class="rsvp-chip in' + (meCar ? " on" : "") + '" data-action="set-mycar" data-v="1">운전 가능</button><button class="rsvp-chip maybe' + (meCar ? "" : " on") + '" data-action="set-mycar" data-v="0">탑승</button></div></div>';
 
     if (notReady) h += '<div class="empty">아직 입장한 크루원이 없어요.</div>';
     if (!drv.length && !notReady) h += '<div class="empty sm">아직 운전 가능한 분이 없어요. 인트로/프로필에서 <b>자차 있음</b>으로 설정하면 운전자 블록이 생겨요.</div>';
@@ -1689,7 +1691,9 @@
   }
   function prepSchedule() {
     var items = entries(DB.schedule).slice().sort(function (a, b) { var ka = (a[1].day || "") + (a[1].time || ""), kb = (b[1].day || "") + (b[1].time || ""); return ka < kb ? -1 : ka > kb ? 1 : 0; });
-    var h = '<div class="page-head"><h1>일정</h1>' + (isMeAdmin() ? '<button class="btn-pri" data-action="new-schedule">+ 추가</button>' : "") + "</div>";
+    var _resp = {}; items.forEach(function (kv) { var rv = kv[1].rsvp || {}; Object.keys(rv).forEach(function (id) { _resp[id] = 1; }); });
+    var _pend = isMeAdmin() ? sessionMemberIds().filter(function (id) { return !_resp[id] && (obj(DB.members)[id] || {}).claimed && id !== me; }) : [];
+    var h = '<div class="page-head"><h1>일정</h1>' + (isMeAdmin() ? ((_pend.length && items.length) ? '<button class="btn-ghost sm" data-action="nudge-rsvp">미응답 ' + _pend.length + '명 알림</button> ' : "") + '<button class="btn-pri" data-action="new-schedule">+ 추가</button>' : "") + "</div>";
     if (!items.length) h += '<div class="empty sm">일정이 없어요.</div>';
     var curDay = null;
     items.forEach(function (kv) {
@@ -2194,6 +2198,18 @@
         if (!confirm(lm)) return;
       }
       if (cur === rst) Store.remove("schedule/" + rid + "/rsvp/" + me); else Store.set("schedule/" + rid + "/rsvp/" + me, rst);
+      return;
+    }
+    if (a === "set-mycar") { Store.set("members/" + me + "/hasCar", t.getAttribute("data-v") === "1"); return; }
+    if (a === "nudge-rsvp") {
+      if (!isMeAdmin()) return;
+      var _r2 = {}; entries(DB.schedule).forEach(function (kv) { var rv = kv[1].rsvp || {}; Object.keys(rv).forEach(function (id) { _r2[id] = 1; }); });
+      var _pd = sessionMemberIds().filter(function (id) { return !_r2[id] && (obj(DB.members)[id] || {}).claimed && id !== me; });
+      if (!_pd.length) { alert("미응답인 크루원이 없어요."); return; }
+      if (!confirm("미응답 " + _pd.length + "명에게 참석 체크 알림을 보낼까요?")) return;
+      var _tt = (tripMeta().title || "일정");
+      _pd.forEach(function (id) { notify(id, memberName(me) + "님이 ‘" + _tt + "’ 참석 여부를 확인하고 싶어해요. 일정에서 참석/미정/불참을 눌러주세요.", "schedule"); });
+      alert(_pd.length + "명에게 알림을 보냈어요.");
       return;
     }
     if (a === "save-schedule") { saveSchedule(t.getAttribute("data-edit")); return; }
