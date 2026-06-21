@@ -77,8 +77,15 @@ window.SRK_CONFIG = {
       { key: "grey",   label: "회색", v: 6 }, { key: "brown",  label: "갈색", v: 7 },
       { key: "pink",   label: "핑크", v: 8 }
     ] },
-    // ↓ 색표 미확인 — 공용 기본 스케일. 현장 색표로 보정 필요
-    { id: "climbingpark",  name: "클라이밍파크",   base: true },
+    // 클라이밍파크 — 출처: 종로점 리뷰. ⚠️ 노랑 최저 · 흰색 최고로 이례적(흰색=고난도) — 현장 확인 권장
+    { id: "climbingpark", name: "클라이밍파크", colors: [
+      { key: "yellow", label: "노랑", v: 0 }, { key: "pink",   label: "핑크", v: 1 },
+      { key: "blue",   label: "파랑", v: 2 }, { key: "red",    label: "빨강", v: 3 },
+      { key: "purple", label: "보라", v: 4 }, { key: "brown",  label: "갈색", v: 5 },
+      { key: "grey",   label: "회색", v: 6 }, { key: "black",  label: "검정", v: 7 },
+      { key: "white",  label: "흰색", v: 8 }
+    ] },
+    // ↓ 색표 미확인(spiri7 403·공식사이트 차단) — 공용 기본 스케일. 현장 색표로 보정 필요
     { id: "seoulboulders", name: "서울볼더스",     base: true },
     { id: "theplastic",    name: "더플라스틱",     base: true },
     { id: "etc",           name: "기타 (직접 입력)", manual: true }
