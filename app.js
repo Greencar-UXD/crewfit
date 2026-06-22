@@ -717,8 +717,16 @@
     $("#app-header").innerHTML = ""; $("#app-nav").innerHTML = ""; $("#app-main").innerHTML = ""; setChrome(true);
     var g = $("#gate"); g.classList.remove("hidden"); g.innerHTML = loginCard();
     bindPin($("#i-pin"), $("#pin-cells"), $("#pin-err"));
+    var pf = $("#i-pin"); if (pf) pf.addEventListener("input", loginBtnState);
     var nf = $("#i-loginname"); if (nf) { nf.addEventListener("input", updateLoginMode); try { nf.focus(); } catch (e) {} }
     updateLoginMode();
+  }
+  // 이름 + 인증번호 4자리 다 입력돼야 로그인 버튼 활성화
+  function loginBtnState() {
+    var btn = $("#login-btn"); if (!btn) return;
+    var nm = (($("#i-loginname") || {}).value || "").trim();
+    var pin = (($("#i-pin") || {}).value || "").replace(/\D/g, "");
+    btn.disabled = !(nm && pin.length === 4);
   }
   function loginCard() {
     return '<div class="gate-card login-card">' +
@@ -760,6 +768,7 @@
     }
     if (foot) foot.style.display = (hit && dm && !dm.pin) ? "none" : "";  // 첫 입장(가입)엔 '초기화 요청' 안내 숨김
     paintPinCells($("#pin-cells"), (($("#i-pin") || {}).value) || "");
+    loginBtnState();
   }
   function renderGate() {
     var g = $("#gate"); g.classList.remove("hidden");
