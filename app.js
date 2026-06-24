@@ -250,15 +250,21 @@
 
     if (useCloud) {
       var db = firebase.database();
+      // 익명 인증: DB 보안 규칙을 'auth != null'로 잠그기 위한 토큰을 받는다. 익명 로그인이
+      // 실패해도(콘솔에서 익명 인증 미사용·오프라인 등) 리스너는 그대로 붙여 — 규칙이 아직
+      // 열려 있으면 정상 동작하고, 규칙을 조인 뒤라면 권한오류가 콘솔에 찍혀 원인을 알 수 있다.
+      var authReady = (window.firebase && firebase.auth)
+        ? firebase.auth().signInAnonymously().catch(function (e) { try { console.warn("[crewfit] 익명 인증 실패:", e && e.code); } catch (_) {} })
+        : Promise.resolve();
       return {
         mode: "cloud",
-        onRoot: function (cb) { db.ref("/").on("value", function (s) { cb(s.val() || {}); }); },
+        onRoot: function (cb) { authReady.then(function () { db.ref("/").on("value", function (s) { cb(s.val() || {}); }); }); },
         set: function (p, v) { return db.ref(p).set(v).catch(onWriteError); },
         update: function (p, v) { return db.ref(p).update(v).catch(onWriteError); },
         push: function (p, v) { var r = db.ref(p).push(); r.set(v).catch(onWriteError); return r.key; },
         remove: function (p) { return db.ref(p).remove().catch(onWriteError); },
         tx: function (p, fn) { return db.ref(p).transaction(fn).then(function (r) { return r.committed; }); },
-        seedRoot: function (builder) { db.ref("/").transaction(function (cur) { if (cur && cur.members && Object.keys(cur.members).length) return; return builder(); }); }
+        seedRoot: function (builder) { authReady.then(function () { db.ref("/").transaction(function (cur) { if (cur && cur.members && Object.keys(cur.members).length) return; return builder(); }); }); }
       };
     }
 
