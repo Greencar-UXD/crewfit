@@ -2092,7 +2092,13 @@
     Array.prototype.forEach.call(root.querySelectorAll(".navbtn"), function (b) { b.setAttribute("aria-current", b.classList.contains("on") ? "page" : "false"); });
     Array.prototype.forEach.call(root.querySelectorAll(".seg-b, .bseg, .hsub, .toggle2 button, .board-seg button, .rsvp-chip, .react-btn, .climb-color, .emoji-b"), function (b) { b.setAttribute("aria-pressed", b.classList.contains("on") ? "true" : "false"); });
   }
-  try { new MutationObserver(function () { enhanceA11y(document.body); }).observe(document.body, { childList: true, subtree: true }); } catch (e) {}
+  try {
+    var _a11yQueued = false, _a11yRun = function () { _a11yQueued = false; enhanceA11y(document.body); };
+    new MutationObserver(function () {   // 버스트를 프레임당 1회 스윕으로 합침(전체 바디 재스캔 디바운스)
+      if (_a11yQueued) return; _a11yQueued = true;
+      (window.requestAnimationFrame || window.setTimeout)(_a11yRun);
+    }).observe(document.body, { childList: true, subtree: true });
+  } catch (e) {}
   document.addEventListener("keydown", function (ev) {
     if (ev.key !== "Enter" && ev.key !== " " && ev.key !== "Spacebar") return;
     var t = ev.target;
