@@ -2,7 +2,7 @@
    크루핏 (CREWFIT) — 스타일
    컬러: Cobalt-Mono 디자인 시스템 (코발트 블루 액센트 + cool-gray 중립 램프)
          + 동호회별 팀컬러(--acc: red/blue/green/purple/orange)
-   타이포: Pretendard(본문) + Geist Mono(수치=스코어보드)
+   타이포: Pretendard 단일 (수치는 tabular-nums로 자릿수 정렬)
    레이아웃: 모바일 퍼스트 + PC 반응형(사이드바)
    ============================================================ */
 :root {
@@ -53,8 +53,8 @@
 
   /* ---- Type families ---- */
   --font-text:"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
-  --font-mono:"Geist Mono", ui-monospace, "SFMono-Regular", "JetBrains Mono", "D2Coding", monospace;
-  --font-display: var(--font-mono);  /* 라틴 워드마크·수치 디스플레이용 (스코어보드 정체성) */
+  --font-mono: var(--font-text);     /* 전부 Pretendard로 통일 — 수치 정렬은 tabular-nums로 유지 */
+  --font-display: var(--font-text);
 
   /* ---- 레거시 별칭 (기존 컴포넌트 규칙이 그대로 동작하도록 코발트 토큰에 매핑) ---- */
   --bg:var(--surface-page); --surface:var(--surface-card);
@@ -725,7 +725,7 @@ input:not(.pin-real):focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px
 .btn-line { border-color: var(--border-strong); }
 .modal { box-shadow: var(--shadow-xl); }
 .me-chip { box-shadow: var(--shadow-xs); }
-/* 데이터 타이포: 카운트·D-day는 Geist Mono / 숫자는 tabular */
+/* 데이터 타이포: 카운트·D-day·숫자는 tabular-nums로 자릿수 정렬 (폰트는 Pretendard) */
 .stat-n { font-variant-numeric: tabular-nums; }
 .hero-dday { font-family: var(--font-mono); font-weight: 600; letter-spacing: 0; }
 .sc-badge, .sih-badge { font-variant-numeric: tabular-nums; }
@@ -966,16 +966,15 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 
 /* ============================================================
    시그니처 — 스코어보드 수치 디스플레이
-   이 앱의 주인공은 숫자(D-day·랭킹·에버리지·점수·정산액). 수치는 Geist Mono로
-   크고 당당하게(tabular·타이트 트래킹), 본문 Pretendard는 조용히. 단위(만원 등)는
-   다시 본문체로 떨어뜨려 숫자만 도드라지게.
+   이 앱의 주인공은 숫자(D-day·랭킹·에버리지·점수·정산액). 폰트는 Pretendard 단일이지만
+   크게(weight·tabular·타이트 트래킹) 처리해 도드라지게. 단위(만원 등)는 작게 떨어뜨림.
    ============================================================ */
 .stat-n, .st-n, .rk-avg-n, .md-score, .ms-stat-n, .me-dday, .hero-dday {
   font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -.5px;
 }
 .stat-n { font-size: 1.625rem; font-weight: 700; line-height: 1.1; }
 .st-n   { font-size: 1.5rem; font-weight: 700; }
-.rk-avg-n { font-size: 1.25rem; font-weight: 700; }   /* 800→700: Geist Mono 700 로드됨(가짜볼드 제거) */
+.rk-avg-n { font-size: 1.25rem; font-weight: 700; }   /* 랭킹 에버리지 수치 */
 .md-score { font-size: 2rem; font-weight: 700; }
 .ms-stat-n { font-weight: 700; }
 /* 단위·접미사는 본문체로 (숫자만 mono로 도드라지게) */
