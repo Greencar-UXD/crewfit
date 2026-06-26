@@ -3,3 +3,9 @@ Thumbs.db
 *.log
 .deploy-stamp.tmp
 STATUS.md.tmp
+
+# .claude/skills 파이썬 스킬 실행 시 생기는 아티팩트 (스킬 실행마다 재생성)
+__pycache__/
+*.pyc
+.coverage
+.pytest_cache/
